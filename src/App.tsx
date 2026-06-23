@@ -228,7 +228,7 @@ export default function App() {
     });
 
     // Easter Egg: Disabled auto-mock versus invite pop-up to allow pure real-time versus matches
-  }, [view]);
+  }, []);
 
   // Load validation words of active length
   useEffect(() => {

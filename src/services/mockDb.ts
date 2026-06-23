@@ -223,7 +223,15 @@ async function syncSupabaseWordsCache() {
 
 export async function syncSupabaseData() {
   initLocalStorage();
-  await syncSupabaseWordsCache();
+
+  const lastSync = localStorage.getItem('termo_db_last_sync');
+  const today = new Date().toISOString().slice(0, 10);
+  const hasLocalWords = !!localStorage.getItem('termo_db_words');
+
+  if (lastSync !== today || !hasLocalWords) {
+    await syncSupabaseWordsCache();
+    localStorage.setItem('termo_db_last_sync', today);
+  }
 
   const { data: challenges } = await supabase
     .from('challenges')
@@ -1502,8 +1510,13 @@ export function startupCheckJobs() {
 
 // Memory cache for word validation (lowercase)
 export const loadedWordsCache = new Set<string>();
+export const loadedWordLengths = new Set<number>();
 
 export async function ensureWordsLoaded(length: number) {
+  if (loadedWordLengths.has(length)) {
+    return;
+  }
+
   try {
     const { data, error } = await supabase
       .from('palavras')
@@ -1517,6 +1530,7 @@ export async function ensureWordsLoaded(length: number) {
           loadedWordsCache.add(row.Word.toLowerCase().trim());
         }
       });
+      loadedWordLengths.add(length);
       console.log(`Loaded ${data.length} words of length ${length} into validation cache.`);
     }
   } catch (err) {
