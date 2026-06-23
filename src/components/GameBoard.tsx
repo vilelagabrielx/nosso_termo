@@ -7,6 +7,8 @@ interface GameBoardProps {
   currentGuess: string;
   maxAttempts: number;
   shakeRowIndex: number | null;
+  onCellClick?: (cellIndex: number) => void;
+  focusedCellIndex?: number | null;
 }
 
 // Wordle evaluation function
@@ -51,6 +53,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   currentGuess,
   maxAttempts,
   shakeRowIndex,
+  onCellClick,
+  focusedCellIndex,
 }) => {
   // Find where each board was solved (index of first guess matching the word)
   const getSolvedIndex = (boardIndex: number): number | null => {
@@ -94,9 +98,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   cellStatuses = getLetterStatuses(guessWord, targetWord);
                 } else if (isCurrentRow && !isSolved) {
                   // Typing in the active row
-                  cellsContent = currentGuess.split('');
                   for (let i = 0; i < targetLen; i++) {
-                    if (i < currentGuess.length) {
+                    const char = currentGuess[i] || '';
+                    cellsContent[i] = char;
+                    if (char && char !== ' ') {
                       cellStatuses[i] = 'typing';
                     }
                   }
@@ -116,16 +121,23 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                       // Add flip animation only when a guess was made
                       // We can base this on whether a row has a submitted guess
                       const isFlipped = showGuess && !isAfterSolve;
+                      const isFocused = isCurrentRow && focusedCellIndex === cellIndex;
 
                       return (
                         <div
                           key={cellIndex}
-                          className={`game-cell ${status} ${isFlipped ? 'flip' : ''}`}
+                          className={`game-cell ${status} ${isFlipped ? 'flip' : ''} ${isFocused ? 'focused' : ''}`}
                           style={{
-                            animationDelay: isFlipped ? `${cellIndex * 100}ms` : '0ms'
+                            animationDelay: isFlipped ? `${cellIndex * 100}ms` : '0ms',
+                            cursor: (isCurrentRow && !isSolved) ? 'pointer' : 'default'
+                          }}
+                          onClick={() => {
+                            if (isCurrentRow && !isSolved) {
+                              onCellClick?.(cellIndex);
+                            }
                           }}
                         >
-                          {!isAfterSolve ? letter : ''}
+                          {!isAfterSolve && letter !== ' ' ? letter : ''}
                         </div>
                       );
                     })}

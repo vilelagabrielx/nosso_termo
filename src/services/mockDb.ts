@@ -27,7 +27,7 @@ export interface Challenge {
 export interface SpecialModeResult {
   playerName: 'Gabriel' | 'Alessandra' | 'Ambos';
   date: string;
-  mode: 'bomb' | 'crossword';
+  mode: 'bomb' | 'crossword' | 'blitz';
   success: boolean;
   score: number;
   time: number;
@@ -83,22 +83,31 @@ function mapDbWord(row: any) {
     usedCount: row.UsedCount || row.used_count || row.usedCount || row.usos || 0,
     lastUsedAt: row.LastUsedAt || row.last_used_at || row.lastUsedAt || row.usada_em || null,
     createdAt: row.CreatedAt || row.created_at || row.createdAt || new Date().toISOString(),
-    source: row.Source || row.source || row.fonte || 'Supabase'
+    source: row.Source || row.source || row.fonte || 'Supabase',
+    enabled: row.Enabled !== undefined ? row.Enabled : (row.enabled !== undefined ? row.enabled : true),
+    icf: row.Icf !== undefined ? row.Icf : (row.icf !== undefined ? row.icf : 0)
   };
 }
 
 async function selectSupabaseWords(length?: number, count: number = 100, seed: number = 0): Promise<any[]> {
   for (const table of WORD_TABLE_CANDIDATES) {
-    const { data, error } = await supabase.from(table).select('*').limit(2000);
+    let query = supabase.from(table).select('*').eq('Enabled', true);
+    if (length !== undefined) {
+      query = query.eq('Length', length);
+    }
+    // Prioritize least used words (UsedCount ASC)
+    query = query.order('UsedCount', { ascending: true }).order('Id', { ascending: true });
+
+    const { data, error } = await query.limit(1000);
     if (!error && data) {
       const mapped = data
         .map(mapDbWord)
         .filter((item) => item.word && (!length || item.length === length));
       if (mapped.length > 0) {
-        // Ensure deterministic order by sorting alphabetically first
-        mapped.sort((a, b) => a.word.localeCompare(b.word));
-
+        // Ensure deterministic order by sorting alphabetically first if seed > 0
+        // otherwise return the least-used ones
         if (seed > 0) {
+          mapped.sort((a, b) => a.word.localeCompare(b.word));
           const selected: any[] = [];
           const tempMapped = [...mapped];
           let currentSeed = seed;
@@ -270,10 +279,16 @@ export async function syncSupabaseData() {
       gabrielTermo: row.gabriel_termo_score || 0,
       gabrielDueto: row.gabriel_dueto_score || 0,
       gabrielQuarteto: row.gabriel_quarteto_score || 0,
+      gabrielBomb: row.gabriel_bomb_score || 0,
+      gabrielCrossword: row.gabriel_crossword_score || 0,
+      gabrielBlitz: row.gabriel_blitz_score || 0,
       gabrielTotal: row.gabriel_total_score || 0,
       alessandraTermo: row.alessandra_termo_score || 0,
       alessandraDueto: row.alessandra_dueto_score || 0,
       alessandraQuarteto: row.alessandra_quarteto_score || 0,
+      alessandraBomb: row.alessandra_bomb_score || 0,
+      alessandraCrossword: row.alessandra_crossword_score || 0,
+      alessandraBlitz: row.alessandra_blitz_score || 0,
       alessandraTotal: row.alessandra_total_score || 0,
       winner: row.winner || 'Empate'
     }))));
@@ -396,6 +411,11 @@ export async function getChallengeForDate(dateStr: string): Promise<Challenge> {
   const newChallenge: Challenge = { date: dateStr, words };
   challenges.push(newChallenge);
   localStorage.setItem('termo_challenges', JSON.stringify(challenges));
+
+  // Increment usage for newly drawn daily words
+  incrementWordsUsage([mode1, ...mode2, ...mode4]).catch(err =>
+    console.error('Failed to increment daily challenge words usage:', err)
+  );
 
   await supabase.from('challenges').insert({
     date: dateStr,
@@ -773,10 +793,16 @@ export interface VersusResult {
   gabrielTermo: number;
   gabrielDueto: number;
   gabrielQuarteto: number;
+  gabrielBomb?: number;
+  gabrielCrossword?: number;
+  gabrielBlitz?: number;
   gabrielTotal: number;
   alessandraTermo: number;
   alessandraDueto: number;
   alessandraQuarteto: number;
+  alessandraBomb?: number;
+  alessandraCrossword?: number;
+  alessandraBlitz?: number;
   alessandraTotal: number;
   winner: 'Gabriel' | 'Alessandra' | 'Empate';
 }
@@ -806,10 +832,16 @@ export function saveVersusMatch(match: VersusResult) {
     gabriel_termo_score: match.gabrielTermo,
     gabriel_dueto_score: match.gabrielDueto,
     gabriel_quarteto_score: match.gabrielQuarteto,
+    gabriel_bomb_score: match.gabrielBomb || 0,
+    gabriel_crossword_score: match.gabrielCrossword || 0,
+    gabriel_blitz_score: match.gabrielBlitz || 0,
     gabriel_total_score: match.gabrielTotal,
     alessandra_termo_score: match.alessandraTermo,
     alessandra_dueto_score: match.alessandraDueto,
     alessandra_quarteto_score: match.alessandraQuarteto,
+    alessandra_bomb_score: match.alessandraBomb || 0,
+    alessandra_crossword_score: match.alessandraCrossword || 0,
+    alessandra_blitz_score: match.alessandraBlitz || 0,
     alessandra_total_score: match.alessandraTotal,
     winner: match.winner
   }, { onConflict: 'date' }).then(({ error }) => {
@@ -886,7 +918,11 @@ export async function getBlitzWordPool(count: number = 100): Promise<string[]> {
   const remoteWords = await selectSupabaseWords(undefined, count);
   if (remoteWords.length > 0) {
     localStorage.setItem('termo_db_words', JSON.stringify(remoteWords));
-    return remoteWords.map(item => item.word).sort(() => Math.random() - 0.5);
+    const pool = remoteWords.map(item => item.word);
+    incrementWordsUsage(pool).catch(err =>
+      console.error('Failed to increment blitz words usage:', err)
+    );
+    return pool.sort(() => Math.random() - 0.5);
   }
 
   const words = JSON.parse(localStorage.getItem('termo_db_words') || '[]');
@@ -906,7 +942,7 @@ export async function getBlitzWordPool(count: number = 100): Promise<string[]> {
 
   const selected = sorted.slice(0, count).map((w: any) => w.word);
   
-  // Update usage count
+  // Update usage count locally
   const now = new Date().toISOString();
   selected.forEach(wordStr => {
     const idx = words.findIndex((w: any) => w.word === wordStr);
@@ -918,6 +954,11 @@ export async function getBlitzWordPool(count: number = 100): Promise<string[]> {
   
   localStorage.setItem('termo_db_words', JSON.stringify(words));
   checkAndTriggerAutoReplenish();
+
+  // Increment usage in database as well (best-effort)
+  incrementWordsUsage(selected).catch(err =>
+    console.error('Failed to increment blitz words usage in DB:', err)
+  );
   
   return selected.sort(() => Math.random() - 0.5);
 }
@@ -1002,6 +1043,12 @@ export async function getBombWordForDate(dateStr: string): Promise<string> {
   if (!word) {
     throw new Error('A tabela palavras no Supabase não tem palavra suficiente para o Modo Bomba.');
   }
+
+  // Increment usage for newly drawn bomb target word
+  incrementWordUsage(word).catch(err =>
+    console.error('Failed to increment bomb word usage:', err)
+  );
+
   challenges[dateStr] = word;
   localStorage.setItem(key, JSON.stringify(challenges));
   return word;
@@ -1070,7 +1117,7 @@ export function getCrosswordForDate(dateStr: string): CrosswordChallenge {
 export function getSpecialResultForDate(
   playerName: 'Gabriel' | 'Alessandra' | 'Ambos',
   dateStr: string,
-  mode: 'bomb' | 'crossword'
+  mode: 'bomb' | 'crossword' | 'blitz'
 ): SpecialModeResult | null {
   initLocalStorage();
   const results: SpecialModeResult[] = JSON.parse(localStorage.getItem('termo_special_results') || '[]');
@@ -1358,3 +1405,102 @@ export function startupCheckJobs() {
     runWordGenJob(j.id);
   });
 }
+
+// Memory cache for word validation (lowercase)
+export const loadedWordsCache = new Set<string>();
+
+export async function ensureWordsLoaded(length: number) {
+  try {
+    const { data, error } = await supabase
+      .from('palavras')
+      .select('Word')
+      .eq('Length', length)
+      .eq('Enabled', true);
+    
+    if (!error && data) {
+      data.forEach(row => {
+        if (row.Word) {
+          loadedWordsCache.add(row.Word.toLowerCase().trim());
+        }
+      });
+      console.log(`Loaded ${data.length} words of length ${length} into validation cache.`);
+    }
+  } catch (err) {
+    console.error("Error loading words of length " + length, err);
+  }
+}
+
+export function validateWord(word: string, length: number, targets: string[] = []): boolean {
+  const normalized = word.toLowerCase().trim();
+  
+  // Target word is always valid
+  if (targets.map(t => t.toLowerCase().trim()).includes(normalized)) {
+    return true;
+  }
+  
+  // 1. Check in-memory Set
+  if (loadedWordsCache.has(normalized)) {
+    return true;
+  }
+  
+  // 2. Check local storage cache
+  const localWordsStr = localStorage.getItem('termo_db_words');
+  if (localWordsStr) {
+    try {
+      const localWords = JSON.parse(localWordsStr);
+      const exists = localWords.some((w: any) => 
+        w.word.toLowerCase().trim() === normalized && 
+        w.length === length && 
+        w.enabled !== false
+      );
+      if (exists) return true;
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  // 3. Check hardcoded fallbacks
+  const fallbackList = FALLBACK_WORDS_BY_LENGTH[length] || [];
+  if (fallbackList.map(w => w.toLowerCase()).includes(normalized)) {
+    return true;
+  }
+  
+  return false;
+}
+
+export async function incrementWordUsage(word: string) {
+  await incrementWordsUsage([word]);
+}
+
+export async function incrementWordsUsage(words: string[]) {
+  const normalizedList = words.map(w => w.toLowerCase().trim()).filter(Boolean);
+  if (normalizedList.length === 0) return;
+  
+  try {
+    const { data, error } = await supabase
+      .from('palavras')
+      .select('Id, UsedCount')
+      .in('Word', normalizedList);
+    
+    if (!error && data) {
+      // Perform updates in parallel chunks to prevent connection/rate limits
+      const batchSize = 10;
+      for (let i = 0; i < data.length; i += batchSize) {
+        const chunk = data.slice(i, i + batchSize);
+        await Promise.all(chunk.map(row => {
+          const newUsedCount = (Number(row.UsedCount) || 0) + 1;
+          return supabase
+            .from('palavras')
+            .update({
+              UsedCount: newUsedCount,
+              LastUsedAt: new Date().toISOString()
+            })
+            .eq('Id', row.Id);
+        }));
+      }
+    }
+  } catch (err) {
+    console.error('Failed to increment words usage:', err);
+  }
+}
+
