@@ -287,6 +287,14 @@ export default function App() {
         }
         return letters.slice(0, target.length).join('');
       });
+
+      // Also shift focusedCharIndex if it is currently set to a newly revealed index
+      setFocusedCharIndex(currentFocus => {
+        if (currentFocus === null || afogadoRevealedIndices.has(currentFocus)) {
+          return getFirstEditableCell(target, afogadoRevealedIndices);
+        }
+        return currentFocus;
+      });
     }
   }, [afogadoRevealedIndices, gameModeType, targetWords]);
 
@@ -834,6 +842,16 @@ export default function App() {
     loadDashboardData(activePlayer);
   };
 
+  // Helper to find the first editable cell in Afogado
+  const getFirstEditableCell = (word: string, revealedSet: Set<number>): number | null => {
+    for (let i = 0; i < word.length; i++) {
+      if (!revealedSet.has(i)) {
+        return i;
+      }
+    }
+    return null;
+  };
+
   // The guess size is the maximum length among all currently unsolved boards.
   // If all boards are solved, it defaults to the length of the first word.
   const getActiveGuessLen = () => {
@@ -868,7 +886,11 @@ export default function App() {
     if (view === 'playing') {
       const len = getActiveGuessLen();
       setCurrentGuess(' '.repeat(len));
-      setFocusedCharIndex(0);
+      if (gameModeType === 'afogado' && targetWords.length > 0) {
+        setFocusedCharIndex(getFirstEditableCell(targetWords[0], afogadoRevealedIndices));
+      } else {
+        setFocusedCharIndex(0);
+      }
     }
   }, [targetWords, guesses.length, activeMode, view, gameModeType]);
 
@@ -1207,7 +1229,7 @@ export default function App() {
     const hasSpaces = currentGuess.includes(' ');
     if (hasSpaces) {
       // Trigger shake animation
-      setShakeRowIndex(guesses.length);
+      setShakeRowIndex(gameModeType === 'afogado' ? 0 : guesses.length);
       setTimeout(() => setShakeRowIndex(null), 500);
       return;
     }
@@ -1216,47 +1238,11 @@ export default function App() {
     if (targetWords.length > 0) {
       const activeLength = targetWords[0].length;
       if (!validateWord(currentGuess, activeLength, targetWords)) {
-        setShakeRowIndex(guesses.length);
+        setShakeRowIndex(gameModeType === 'afogado' ? 0 : guesses.length);
         setTimeout(() => setShakeRowIndex(null), 500);
         showToast("Palavra não aceita");
         return;
       }
-    }
-
-    const nextGuesses = [...guesses, currentGuess];
-    setGuesses(nextGuesses);
-    setCurrentGuess('');
-
-    if (gameModeType === 'bomb') {
-      const target = targetWords[0];
-      const evaluation = getLetterStatuses(currentGuess, target);
-      const delta = evaluation.reduce((total, status) => {
-        if (status === 'correct') return total - 8;
-        if (status === 'present') return total + 6;
-        return total + 12;
-      }, 0);
-      const nextCharge = Math.max(0, Math.min(100, bombCharge + delta));
-      const success = currentGuess === target;
-      const exploded = nextCharge >= 100;
-      const runsOut = nextGuesses.length >= maxAttempts;
-
-      setBombCharge(nextCharge);
-      setBombLastDelta(delta);
-      setSolvedBoards([success]);
-
-      if (success || exploded || runsOut) {
-        const finalCharge = success ? nextCharge : exploded ? 100 : nextCharge;
-        const score = success ? Math.max(25, 180 - nextGuesses.length * 18 - finalCharge) : 0;
-        finishSpecialMode(
-          'bomb',
-          success,
-          nextGuesses.length,
-          success ? 1 : 0,
-          success ? `Carga final: ${finalCharge}%` : exploded ? 'A bomba chegou a 100%.' : `Carga final: ${finalCharge}%`,
-          score
-        );
-      }
-      return;
     }
 
     if (gameModeType === 'afogado') {
@@ -1345,12 +1331,51 @@ export default function App() {
 
         showToast(`✅ Palavra Resolvida! +${earnedPoints} pts`);
       } else {
+        setShakeRowIndex(0);
+        setTimeout(() => setShakeRowIndex(null), 500);
         setAfogadoCurrentStreak(0);
         showToast("❌ Errou! Combo quebrado.");
         
-        if (nextGuesses.length > 5) {
-          setGuesses(nextGuesses.slice(-5));
-        }
+        // Clear player-typed letters, keeping revealed ones
+        const resetGuess = target.split('').map((char, idx) => afogadoRevealedIndices.has(idx) ? char : ' ').join('');
+        setCurrentGuess(resetGuess);
+        setFocusedCharIndex(getFirstEditableCell(target, afogadoRevealedIndices));
+      }
+      return;
+    }
+
+    const nextGuesses = [...guesses, currentGuess];
+    setGuesses(nextGuesses);
+    setCurrentGuess('');
+
+    if (gameModeType === 'bomb') {
+      const target = targetWords[0];
+      const evaluation = getLetterStatuses(currentGuess, target);
+      const delta = evaluation.reduce((total, status) => {
+        if (status === 'correct') return total - 8;
+        if (status === 'present') return total + 6;
+        return total + 12;
+      }, 0);
+      const nextCharge = Math.max(0, Math.min(100, bombCharge + delta));
+      const success = currentGuess === target;
+      const exploded = nextCharge >= 100;
+      const runsOut = nextGuesses.length >= maxAttempts;
+
+      setBombCharge(nextCharge);
+      setBombLastDelta(delta);
+      setSolvedBoards([success]);
+
+      if (success || exploded || runsOut) {
+        const finalCharge = success ? nextCharge : exploded ? 100 : nextCharge;
+        const score = success ? Math.max(25, 180 - nextGuesses.length * 18 - finalCharge) : 0;
+        finishSpecialMode(
+          'bomb',
+          success,
+          nextGuesses.length,
+          success ? 1 : 0,
+          success ? `Carga final: ${finalCharge}%` : exploded ? 'A bomba chegou a 100%.' : `Carga final: ${finalCharge}%`,
+          score
+        );
       }
       return;
     }
@@ -4600,7 +4625,7 @@ export default function App() {
                         words={targetWords}
                         guesses={guesses}
                         currentGuess={currentGuess}
-                        maxAttempts={maxAttempts}
+                        maxAttempts={gameModeType === 'afogado' ? 1 : maxAttempts}
                         shakeRowIndex={shakeRowIndex}
                         onCellClick={(idx) => {
                           setFocusedCharIndex(idx);
