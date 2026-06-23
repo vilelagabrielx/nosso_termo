@@ -1,19 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import type { KeyboardEvent } from 'react';
-import { 
-  initLocalStorage, 
-  getActivePlayer, 
-  setActivePlayer, 
-  getTodayDateString, 
-  getChallengeForDate, 
-  getPlayerResultForDate, 
-  saveModeResult, 
-  getDailyHistoryList, 
-  getHeadToHeadScore, 
-  getPlayerStats, 
-  getVersusMatchForDate, 
-  saveVersusMatch, 
-  getVersusHistory, 
+import {
+  initLocalStorage,
+  getActivePlayer,
+  setActivePlayer,
+  getTodayDateString,
+  getChallengeForDate,
+  getPlayerResultForDate,
+  saveModeResult,
+  getDailyHistoryList,
+  getHeadToHeadScore,
+  getPlayerStats,
+  getVersusMatchForDate,
+  saveVersusMatch,
+  getVersusHistory,
   getBlitzRecords,
   saveBlitzMatch,
   getBlitzHistory,
@@ -30,8 +30,8 @@ import {
   createWordGenJob,
   syncSupabaseData,
   getAmbosDailyHistory,
-  type Challenge, 
-  type DailyResult, 
+  type Challenge,
+  type DailyResult,
   type VersusResult,
   type BlitzMatch,
   type BlitzRecord,
@@ -42,13 +42,13 @@ import { GameBoard, getLetterStatuses } from './components/GameBoard';
 import { supabase } from './services/supabaseClient';
 import { Keyboard } from './components/Keyboard';
 import { Confetti } from './components/Confetti';
-import { 
-  Calendar, 
-  Play, 
-  ArrowLeft, 
-  TrendingUp, 
-  Clock, 
-  Activity, 
+import {
+  Calendar,
+  Play,
+  ArrowLeft,
+  TrendingUp,
+  Clock,
+  Activity,
   Users,
   Zap,
   Flame,
@@ -166,7 +166,7 @@ export default function App() {
   const [guesses, setGuesses] = useState<string[]>([]);
   const [currentGuess, setCurrentGuess] = useState<string>('');
   const [solvedBoards, setSolvedBoards] = useState<boolean[]>([]);
-  
+
   // Timer state
   const [elapsedTime, setElapsedTime] = useState<number>(0);
   const timerRef = useRef<any>(null);
@@ -179,7 +179,7 @@ export default function App() {
   const [modalScore, setModalScore] = useState<number>(0);
   const [modalAttempts, setModalAttempts] = useState<number>(0);
   const [modalTime, setModalTime] = useState<number>(0);
-  
+
   // Confetti triggering state
   const [triggerConfetti, setTriggerConfetti] = useState<boolean>(false);
 
@@ -233,7 +233,7 @@ export default function App() {
         setOnlineUsers(users);
       })
       .on('broadcast', { event: 'invite' }, (payload) => {
-        const { from, to } = payload.payload;
+        const { to } = payload.payload;
         if (to === activePlayer) {
           // Received invite from 'from'
           setVersusInviteVisible(true);
@@ -364,7 +364,7 @@ export default function App() {
   // Helper to send game updates in real-time
   const broadcastGameUpdate = (guessesCountVal?: number, wordsSolvedVal?: number, completedVal?: boolean, extraData = {}) => {
     if (activePlayer === 'Ambos' || !multiplayerChannel) return;
-    
+
     // Calculate progress (how many boards solved out of total)
     const solvedCount = wordsSolvedVal !== undefined ? wordsSolvedVal : solvedBoards.filter(Boolean).length;
     const guessesCount = guessesCountVal !== undefined ? guessesCountVal : guesses.length;
@@ -412,11 +412,11 @@ export default function App() {
       const midnight = new Date();
       midnight.setHours(24, 0, 0, 0);
       const diffMs = midnight.getTime() - now.getTime();
-      
+
       const hours = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
       const minutes = Math.max(0, Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)));
       const seconds = Math.max(0, Math.floor((diffMs % (1000 * 60)) / 1000));
-      
+
       const pad = (n: number) => n.toString().padStart(2, '0');
       setTimeUntilMidnight(`${pad(hours)}:${pad(minutes)}:${pad(seconds)}`);
     };
@@ -477,11 +477,11 @@ export default function App() {
   const loadAdminData = () => {
     const stats = getDbStats();
     setAdminStats(stats);
-    
+
     const jobs = JSON.parse(localStorage.getItem('termo_db_jobs') || '[]');
     const sorted = [...jobs].sort((a: any, b: any) => b.requestedAt.localeCompare(a.requestedAt));
     setGenerationJobs(sorted);
-    
+
     const config = getDbConfig();
     setConfigThreshold(config.minLimitPercent);
     setConfigBatchSize(config.autoGenBatchSize);
@@ -490,11 +490,11 @@ export default function App() {
   useEffect(() => {
     if (view === 'admin') {
       loadAdminData();
-      
+
       const interval = setInterval(() => {
         loadAdminData();
       }, 1500);
-      
+
       return () => clearInterval(interval);
     }
   }, [view]);
@@ -548,7 +548,7 @@ export default function App() {
   const getWordsLengthsString = () => {
     if (!targetWords || targetWords.length === 0) return '';
     if (targetWords.length === 1) return `${targetWords[0].length} letras`;
-    
+
     const lengths = targetWords.map(w => w.length);
     if (targetWords.length === 2) {
       return `${lengths[0]} e ${lengths[1]} letras`;
@@ -557,8 +557,8 @@ export default function App() {
   };
 
   // Dynamic attempts bounds: Quantidade de letras (tamanho máximo das palavras) + 1
-  const maxAttempts = targetWords.length > 0 
-    ? Math.max(...targetWords.map(w => w.length)) + 1 
+  const maxAttempts = targetWords.length > 0
+    ? Math.max(...targetWords.map(w => w.length)) + 1
     : 6;
 
   // Initiate daily challenge mode
@@ -790,14 +790,14 @@ export default function App() {
       const newlySolvedCount = nextSolved.filter(Boolean).length;
       const prevSolvedCount = solvedBoards.filter(Boolean).length;
       let tickerMsg = `${formatTickerTime(elapsedTime)} - ${activePlayer} enviou palpite (${nextGuesses.length}/${maxAttempts})`;
-      
+
       if (newlySolvedCount > prevSolvedCount) {
         const solvedIndex = nextSolved.findIndex((solved, idx) => solved && !solvedBoards[idx]);
         if (solvedIndex !== -1) {
           tickerMsg = `${formatTickerTime(elapsedTime)} - ${activePlayer} resolveu a Palavra ${solvedIndex + 1}!`;
         }
       }
-      
+
       broadcastGameUpdate(
         nextGuesses.length,
         newlySolvedCount,
@@ -862,7 +862,7 @@ export default function App() {
           if (versusOpponentType === 'bot') {
             resolveRemainingOpponent(activeMode);
           }
-          
+
           if (versusOpponentType === 'real') {
             let tickerMsg = '';
             if (success) {
@@ -894,7 +894,7 @@ export default function App() {
               }
             );
           }
-          
+
           setModalSuccess(success);
           setModalScore(activeScore);
           setModalAttempts(nextGuesses.length);
@@ -1142,7 +1142,7 @@ export default function App() {
       setVersusOpponentType('real');
       setLobbyStep('connecting');
       setWaitingForOpponent(true);
-      
+
       multiplayerChannel.send({
         type: 'broadcast',
         event: 'invite',
@@ -1153,7 +1153,7 @@ export default function App() {
       setVersusOpponentType('bot');
       setLobbyStep('connecting');
       setWaitingForOpponent(false);
-      
+
       // Simulate connecting to the bot/offline opponent after 1.5s
       setTimeout(() => {
         setLobbyStep('ready');
@@ -1177,7 +1177,7 @@ export default function App() {
   const launchVersusMatch = async () => {
     const vWords = await getVersusWordsForDate(todayStr);
     setVersusWords(vWords);
-    
+
     setGabrielVersusScores({ termo: 0, dueto: 0, quarteto: 0, total: 0 });
     setAlessandraVersusScores({ termo: 0, dueto: 0, quarteto: 0, total: 0 });
 
@@ -1229,143 +1229,143 @@ export default function App() {
     if (oppIntervalRef.current) clearInterval(oppIntervalRef.current);
     if (versusOpponentType === 'bot') {
       oppIntervalRef.current = setInterval(() => {
-      setOppState(prev => {
-        const nextTime = prev.elapsedTime + 1;
-        let nextGuessesCount = prev.guessesCount;
-        let nextWordsSolved = prev.wordsSolved;
-        let nextProgress = prev.progress;
-        let nextTicker = [...prev.ticker];
-        let nextRound = prev.round;
-        let nextTermoScore = prev.termoScore;
-        let nextDuetoScore = prev.duetoScore;
-        let nextQuartetoScore = prev.quartetoScore;
-        let nextCompleted = prev.completed;
+        setOppState(prev => {
+          const nextTime = prev.elapsedTime + 1;
+          let nextGuessesCount = prev.guessesCount;
+          let nextWordsSolved = prev.wordsSolved;
+          let nextProgress = prev.progress;
+          let nextTicker = [...prev.ticker];
+          let nextRound = prev.round;
+          let nextTermoScore = prev.termoScore;
+          let nextDuetoScore = prev.duetoScore;
+          let nextQuartetoScore = prev.quartetoScore;
+          let nextCompleted = prev.completed;
 
-        if (round === 1) {
-          if (nextTime === 10) {
-            nextGuessesCount = 1;
-            nextProgress = 25;
-            nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} enviou palpite (1/6)`);
-          } else if (nextTime === 22) {
-            nextGuessesCount = 2;
-            nextProgress = 50;
-            nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} enviou palpite (2/6)`);
-          } else if (nextTime === 35) {
-            nextGuessesCount = 3;
-            nextProgress = 75;
-            nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} enviou palpite (3/6)`);
-          } else if (nextTime === 45) {
-            nextGuessesCount = 4;
-            nextWordsSolved = 1;
-            nextProgress = 100;
-            const roundScore = calculateVersusScore(1, 4, 45, true, 1);
-            nextTermoScore = roundScore;
-            
-            if (opponentName === 'Gabriel') {
-              setGabrielVersusScores(s => ({ ...s, termo: roundScore, total: s.total + roundScore }));
-            } else {
-              setAlessandraVersusScores(s => ({ ...s, termo: roundScore, total: s.total + roundScore }));
+          if (round === 1) {
+            if (nextTime === 10) {
+              nextGuessesCount = 1;
+              nextProgress = 25;
+              nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} enviou palpite (1/6)`);
+            } else if (nextTime === 22) {
+              nextGuessesCount = 2;
+              nextProgress = 50;
+              nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} enviou palpite (2/6)`);
+            } else if (nextTime === 35) {
+              nextGuessesCount = 3;
+              nextProgress = 75;
+              nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} enviou palpite (3/6)`);
+            } else if (nextTime === 45) {
+              nextGuessesCount = 4;
+              nextWordsSolved = 1;
+              nextProgress = 100;
+              const roundScore = calculateVersusScore(1, 4, 45, true, 1);
+              nextTermoScore = roundScore;
+
+              if (opponentName === 'Gabriel') {
+                setGabrielVersusScores(s => ({ ...s, termo: roundScore, total: s.total + roundScore }));
+              } else {
+                setAlessandraVersusScores(s => ({ ...s, termo: roundScore, total: s.total + roundScore }));
+              }
+
+              nextTicker.push(`${formatTickerTime(nextTime)} - 🎉 ${opponentName} resolveu o Termo em 4 palpites!`);
+              nextRound = 2;
             }
+          } else if (round === 2) {
+            if (nextTime === 12) {
+              nextGuessesCount = 1;
+              nextProgress = 20;
+              nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} enviou palpite (1/7)`);
+            } else if (nextTime === 25) {
+              nextGuessesCount = 2;
+              nextProgress = 40;
+              nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} enviou palpite (2/7)`);
+            } else if (nextTime === 42) {
+              nextGuessesCount = 3;
+              nextWordsSolved = 1;
+              nextProgress = 60;
+              nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} resolveu a Palavra 1!`);
+            } else if (nextTime === 60) {
+              nextGuessesCount = 4;
+              nextProgress = 80;
+              nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} enviou palpite (4/7)`);
+            } else if (nextTime === 75) {
+              nextGuessesCount = 5;
+              nextWordsSolved = 2;
+              nextProgress = 100;
+              const roundScore = calculateVersusScore(2, 5, 75, true, 2);
+              nextDuetoScore = roundScore;
 
-            nextTicker.push(`${formatTickerTime(nextTime)} - 🎉 ${opponentName} resolveu o Termo em 4 palpites!`);
-            nextRound = 2;
-          }
-        } else if (round === 2) {
-          if (nextTime === 12) {
-            nextGuessesCount = 1;
-            nextProgress = 20;
-            nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} enviou palpite (1/7)`);
-          } else if (nextTime === 25) {
-            nextGuessesCount = 2;
-            nextProgress = 40;
-            nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} enviou palpite (2/7)`);
-          } else if (nextTime === 42) {
-            nextGuessesCount = 3;
-            nextWordsSolved = 1;
-            nextProgress = 60;
-            nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} resolveu a Palavra 1!`);
-          } else if (nextTime === 60) {
-            nextGuessesCount = 4;
-            nextProgress = 80;
-            nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} enviou palpite (4/7)`);
-          } else if (nextTime === 75) {
-            nextGuessesCount = 5;
-            nextWordsSolved = 2;
-            nextProgress = 100;
-            const roundScore = calculateVersusScore(2, 5, 75, true, 2);
-            nextDuetoScore = roundScore;
+              if (opponentName === 'Gabriel') {
+                setGabrielVersusScores(s => ({ ...s, dueto: roundScore, total: s.total + roundScore }));
+              } else {
+                setAlessandraVersusScores(s => ({ ...s, dueto: roundScore, total: s.total + roundScore }));
+              }
 
-            if (opponentName === 'Gabriel') {
-              setGabrielVersusScores(s => ({ ...s, dueto: roundScore, total: s.total + roundScore }));
-            } else {
-              setAlessandraVersusScores(s => ({ ...s, dueto: roundScore, total: s.total + roundScore }));
+              nextTicker.push(`${formatTickerTime(nextTime)} - 🎉 ${opponentName} resolveu o Dueto com 5 palpites!`);
+              nextRound = 3;
             }
+          } else if (round === 3) {
+            if (nextTime === 15) {
+              nextGuessesCount = 1;
+              nextProgress = 15;
+              nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} enviou palpite (1/9)`);
+            } else if (nextTime === 32) {
+              nextGuessesCount = 2;
+              nextWordsSolved = 1;
+              nextProgress = 30;
+              nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} resolveu a Palavra 1!`);
+            } else if (nextTime === 55) {
+              nextGuessesCount = 3;
+              nextProgress = 45;
+              nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} enviou palpite (3/9)`);
+            } else if (nextTime === 75) {
+              nextGuessesCount = 4;
+              nextWordsSolved = 2;
+              nextProgress = 60;
+              nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} resolveu a Palavra 2!`);
+            } else if (nextTime === 105) {
+              nextGuessesCount = 5;
+              nextProgress = 75;
+              nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} enviou palpite (5/9)`);
+            } else if (nextTime === 125) {
+              nextGuessesCount = 6;
+              nextWordsSolved = 3;
+              nextProgress = 85;
+              nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} resolveu a Palavra 3!`);
+            } else if (nextTime === 145) {
+              nextGuessesCount = 7;
+              nextWordsSolved = 4;
+              nextProgress = 100;
+              const roundScore = calculateVersusScore(4, 7, 145, true, 4);
+              nextQuartetoScore = roundScore;
+              nextCompleted = true;
 
-            nextTicker.push(`${formatTickerTime(nextTime)} - 🎉 ${opponentName} resolveu o Dueto com 5 palpites!`);
-            nextRound = 3;
-          }
-        } else if (round === 3) {
-          if (nextTime === 15) {
-            nextGuessesCount = 1;
-            nextProgress = 15;
-            nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} enviou palpite (1/9)`);
-          } else if (nextTime === 32) {
-            nextGuessesCount = 2;
-            nextWordsSolved = 1;
-            nextProgress = 30;
-            nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} resolveu a Palavra 1!`);
-          } else if (nextTime === 55) {
-            nextGuessesCount = 3;
-            nextProgress = 45;
-            nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} enviou palpite (3/9)`);
-          } else if (nextTime === 75) {
-            nextGuessesCount = 4;
-            nextWordsSolved = 2;
-            nextProgress = 60;
-            nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} resolveu a Palavra 2!`);
-          } else if (nextTime === 105) {
-            nextGuessesCount = 5;
-            nextProgress = 75;
-            nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} enviou palpite (5/9)`);
-          } else if (nextTime === 125) {
-            nextGuessesCount = 6;
-            nextWordsSolved = 3;
-            nextProgress = 85;
-            nextTicker.push(`${formatTickerTime(nextTime)} - ${opponentName} resolveu a Palavra 3!`);
-          } else if (nextTime === 145) {
-            nextGuessesCount = 7;
-            nextWordsSolved = 4;
-            nextProgress = 100;
-            const roundScore = calculateVersusScore(4, 7, 145, true, 4);
-            nextQuartetoScore = roundScore;
-            nextCompleted = true;
+              if (opponentName === 'Gabriel') {
+                setGabrielVersusScores(s => ({ ...s, quarteto: roundScore, total: s.total + roundScore }));
+              } else {
+                setAlessandraVersusScores(s => ({ ...s, quarteto: roundScore, total: s.total + roundScore }));
+              }
 
-            if (opponentName === 'Gabriel') {
-              setGabrielVersusScores(s => ({ ...s, quarteto: roundScore, total: s.total + roundScore }));
-            } else {
-              setAlessandraVersusScores(s => ({ ...s, quarteto: roundScore, total: s.total + roundScore }));
+              nextTicker.push(`${formatTickerTime(nextTime)} - 🏁 ${opponentName} completou o Quarteto!`);
+              nextRound = 4;
             }
-
-            nextTicker.push(`${formatTickerTime(nextTime)} - 🏁 ${opponentName} completou o Quarteto!`);
-            nextRound = 4;
           }
-        }
 
-        return {
-          ...prev,
-          elapsedTime: nextTime,
-          guessesCount: nextGuessesCount,
-          wordsSolved: nextWordsSolved,
-          progress: nextProgress,
-          ticker: nextTicker,
-          round: nextRound,
-          termoScore: nextTermoScore,
-          duetoScore: nextDuetoScore,
-          quartetoScore: nextQuartetoScore,
-          completed: nextCompleted
-        };
-      });
-    }, 1000);
+          return {
+            ...prev,
+            elapsedTime: nextTime,
+            guessesCount: nextGuessesCount,
+            wordsSolved: nextWordsSolved,
+            progress: nextProgress,
+            ticker: nextTicker,
+            round: nextRound,
+            termoScore: nextTermoScore,
+            duetoScore: nextDuetoScore,
+            quartetoScore: nextQuartetoScore,
+            completed: nextCompleted
+          };
+        });
+      }, 1000);
     }
 
     if (versusOpponentType === 'real') {
@@ -1415,7 +1415,7 @@ export default function App() {
       setVersusHistory(getVersusHistory());
 
       setView('versus-end');
-      
+
       if (matchWinner === activePlayer) {
         setTriggerConfetti(true);
       }
@@ -1473,8 +1473,8 @@ export default function App() {
 
     setBlitzSolvedTimesList(prevSolvedTimes => {
       // Calculate average time
-      const avg = prevSolvedTimes.length > 0 
-        ? parseFloat((prevSolvedTimes.reduce((a, b) => a + b, 0) / prevSolvedTimes.length).toFixed(1)) 
+      const avg = prevSolvedTimes.length > 0
+        ? parseFloat((prevSolvedTimes.reduce((a, b) => a + b, 0) / prevSolvedTimes.length).toFixed(1))
         : 0;
 
       setBlitzSolvedCount(prevSolvedCount => {
@@ -1500,7 +1500,7 @@ export default function App() {
 
             saveBlitzMatch(finalMatch);
             setBlitzIsNewRecord(isNew);
-            
+
             // Reload scoreboard
             setBlitzRecordsList(getBlitzRecords());
             setBlitzHistoryList(getBlitzHistory());
@@ -1781,26 +1781,26 @@ export default function App() {
         </div>
 
         <div className="player-toggle-container">
-          <button 
+          <button
             className={`player-btn ${activePlayer === 'Gabriel' ? 'active' : ''}`}
             onClick={() => handlePlayerChange('Gabriel')}
           >
             🧔 Gabriel
           </button>
-          <button 
+          <button
             className={`player-btn ${activePlayer === 'Alessandra' ? 'active alessandra' : ''}`}
             onClick={() => handlePlayerChange('Alessandra')}
           >
             👩 Alessandra
           </button>
-          <button 
+          <button
             className={`player-btn ${activePlayer === 'Ambos' ? 'active' : ''}`}
             style={{ background: activePlayer === 'Ambos' ? 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))' : 'transparent' }}
             onClick={() => handlePlayerChange('Ambos')}
           >
             👥 Ambos
           </button>
-          <button 
+          <button
             className={`player-btn ${view === 'admin' ? 'active' : ''}`}
             style={{ border: '1px solid rgba(255, 255, 255, 0.15)', background: view === 'admin' ? 'rgba(255,255,255,0.1)' : 'transparent' }}
             onClick={() => setView(view === 'admin' ? 'dashboard' : 'admin')}
@@ -1826,7 +1826,7 @@ export default function App() {
           {/* Stats Box */}
           <div className="dashboard-panel" style={{ marginBottom: '2rem' }}>
             <h3 style={{ marginTop: 0, borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem' }}>📊 Estatísticas do Banco de Palavras</h3>
-            
+
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', marginTop: '1rem' }}>
               <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
                 <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Total de Palavras</div>
@@ -1835,7 +1835,7 @@ export default function App() {
               <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
                 <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Nunca Utilizadas</div>
                 <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'var(--accent-cyan)', marginTop: '0.25rem' }}>{adminStats.neverUsed}</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>({adminStats.total > 0 ? ((adminStats.neverUsed / adminStats.total)*100).toFixed(1) : 0}%)</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>({adminStats.total > 0 ? ((adminStats.neverUsed / adminStats.total) * 100).toFixed(1) : 0}%)</div>
               </div>
               <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
                 <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Utilizadas 1 vez</div>
@@ -1857,9 +1857,9 @@ export default function App() {
                   Limite Mínimo (% nunca usadas):
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <input 
-                    type="number" 
-                    min="5" 
+                  <input
+                    type="number"
+                    min="5"
                     max="80"
                     value={configThreshold}
                     onChange={(e) => setConfigThreshold(parseInt(e.target.value) || 20)}
@@ -1890,8 +1890,8 @@ export default function App() {
                 </span>
               </div>
             </div>
-            <button 
-              className="modal-close-btn" 
+            <button
+              className="modal-close-btn"
               style={{ marginTop: '1.5rem', width: 'auto', padding: '0.6rem 1.5rem', fontSize: '0.9rem', background: 'var(--accent-purple)' }}
               onClick={handleSaveConfig}
             >
@@ -1906,24 +1906,24 @@ export default function App() {
               Selecione o tamanho do lote para gerar novas palavras em português brasileiro usando a IA Groq (em background).
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
-              <button 
-                className="challenge-btn" 
+              <button
+                className="challenge-btn"
                 style={{ background: 'linear-gradient(135deg, var(--accent-cyan), #3b82f6)', padding: '0.75rem' }}
                 onClick={() => handleTriggerGeneration(100)}
                 disabled={adminStats.pendingJobsCount > 0}
               >
                 Gerar +100 palavras
               </button>
-              <button 
-                className="challenge-btn" 
+              <button
+                className="challenge-btn"
                 style={{ background: 'linear-gradient(135deg, var(--color-present), #f59e0b)', padding: '0.75rem' }}
                 onClick={() => handleTriggerGeneration(250)}
                 disabled={adminStats.pendingJobsCount > 0}
               >
                 Gerar +250 palavras
               </button>
-              <button 
-                className="challenge-btn" 
+              <button
+                className="challenge-btn"
                 style={{ background: 'linear-gradient(135deg, var(--accent-pink), #ec4899)', padding: '0.75rem' }}
                 onClick={() => handleTriggerGeneration(500)}
                 disabled={adminStats.pendingJobsCount > 0}
@@ -1939,7 +1939,7 @@ export default function App() {
               <span>📋 Log de Tarefas de Geração</span>
               {adminStats.pendingJobsCount > 0 && <span className="game-timer" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', animation: 'pulse 1s infinite' }}>Processando...</span>}
             </h3>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem', maxHeight: '300px', overflowY: 'auto' }}>
               {generationJobs.length === 0 ? (
                 <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>Nenhum job de geração executado.</div>
@@ -1955,7 +1955,7 @@ export default function App() {
                         {job.status === 'Failed' && 'Falhou ❌'}
                       </span>
                     </div>
-                    
+
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                       <span>Solicitado em: {new Date(job.requestedAt).toLocaleString()}</span>
                       {job.finishedAt && <span>Concluído em: {new Date(job.finishedAt).toLocaleString()}</span>}
@@ -1986,34 +1986,33 @@ export default function App() {
               ? (waitingForOpponent ? `Aguardando ${opponentName} aceitar o convite...` : 'Duelo iniciando em breve!')
               : 'Conectando oponente simulado para o Duelo...'}
           </p>
-          
+
           <div className="lobby-users">
             {/* Player Row */}
             <div className="lobby-user-row">
               <span>{activePlayer === 'Gabriel' ? '🧔 Gabriel' : '👩 Alessandra'}</span>
               <span className="lobby-user-status ready">Conectado ✓</span>
             </div>
-            
+
             {/* Opponent Row */}
             <div className="lobby-user-row">
               <span>{opponentName === 'Gabriel' ? '🧔 Gabriel' : '👩 Alessandra'}</span>
-              <span className={`lobby-user-status ${
-                versusOpponentType === 'real'
+              <span className={`lobby-user-status ${versusOpponentType === 'real'
                   ? (onlineUsers.includes(opponentName) ? (waitingForOpponent ? 'waiting' : 'ready') : 'waiting')
                   : (lobbyStep === 'connecting' ? 'waiting' : 'ready')
-              }`}>
+                }`}>
                 {versusOpponentType === 'real'
                   ? (onlineUsers.includes(opponentName)
-                      ? (waitingForOpponent ? 'Aguardando aceite...' : 'Conectado ✓')
-                      : 'Offline ✗')
+                    ? (waitingForOpponent ? 'Aguardando aceite...' : 'Conectado ✓')
+                    : 'Offline ✗')
                   : (lobbyStep === 'connecting' ? 'Conectando Robô...' : 'Conectado ✓')}
               </span>
             </div>
           </div>
 
           {waitingForOpponent && (
-            <button 
-              className="versus-summary-btn" 
+            <button
+              className="versus-summary-btn"
               style={{ marginTop: '2rem', background: '#ef4444', border: 'none', boxShadow: 'none' }}
               onClick={() => {
                 setWaitingForOpponent(false);
@@ -2050,7 +2049,7 @@ export default function App() {
               <span>Jogador</span>
               <span>Pontos nesta Rodada</span>
             </div>
-            
+
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0' }}>
               <span style={{ color: 'var(--accent-purple)' }}>🧔 Gabriel</span>
               <span style={{ fontWeight: 'bold' }}>
@@ -2074,8 +2073,8 @@ export default function App() {
         <div className="lobby-container" style={{ maxWidth: '650px' }}>
           <div className="winner-crown" style={{ fontSize: '4.5rem' }}>🏆</div>
           <h2 className="winner-headline" style={{ fontSize: '2.5rem', marginBottom: '1.5rem' }}>
-            {versusMatchToday?.winner === 'Empate' 
-              ? 'EMPATE NO DUELO DO DIA!' 
+            {versusMatchToday?.winner === 'Empate'
+              ? 'EMPATE NO DUELO DO DIA!'
               : `${versusMatchToday?.winner.toUpperCase()} VENCEU O DUELO!`}
           </h2>
 
@@ -2085,7 +2084,7 @@ export default function App() {
               <span style={{ color: 'var(--accent-purple)' }}>Gabriel</span>
               <span style={{ color: 'var(--accent-cyan)' }}>Alessandra</span>
             </div>
-            
+
             <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', padding: '0.5rem 0', textAlign: 'left' }}>
               <span>Termo</span>
               <span>{versusMatchToday?.gabrielTermo} pts</span>
@@ -2101,7 +2100,7 @@ export default function App() {
               <span>{versusMatchToday?.gabrielQuarteto} pts</span>
               <span>{versusMatchToday?.alessandraQuarteto} pts</span>
             </div>
-            
+
             <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', padding: '0.75rem 0', borderTop: '2px solid var(--glass-border)', fontWeight: 'bold', fontSize: '1.15rem', textAlign: 'left', marginTop: '0.5rem' }}>
               <span>Total</span>
               <span style={{ color: 'var(--accent-purple)' }}>{versusMatchToday?.gabrielTotal}</span>
@@ -2139,7 +2138,7 @@ export default function App() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <span>Tempo Médio por Palavra:</span>
-              <span style={{ fontWeight: 'bold' }}>{blitzSolvedTimesList.length > 0 ? (blitzSolvedTimesList.reduce((a,b)=>a+b, 0)/blitzSolvedTimesList.length).toFixed(1) : 0}s</span>
+              <span style={{ fontWeight: 'bold' }}>{blitzSolvedTimesList.length > 0 ? (blitzSolvedTimesList.reduce((a, b) => a + b, 0) / blitzSolvedTimesList.length).toFixed(1) : 0}s</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0' }}>
               <span>Total de Tentativas:</span>
@@ -2153,14 +2152,14 @@ export default function App() {
         </div>
       ) : view === 'dashboard' ? (
         <main className="dashboard">
-          
+
           {/* Individual Daily Winner spotlights */}
           {activePlayer !== 'Ambos' && todayHistory && todayHistory.winner !== 'Aguardando' && (
             <div className="winner-spotlight">
               <div className="winner-crown">🏆</div>
               <h2 className="winner-headline">
-                {todayHistory.winner === 'Empate' 
-                  ? 'EMPATE NO DIA DE HOJE!' 
+                {todayHistory.winner === 'Empate'
+                  ? 'EMPATE NO DIA DE HOJE!'
                   : `VITÓRIA DE ${todayHistory.winner.toUpperCase()} HOJE!`}
               </h2>
               <p className="winner-score-diff">
@@ -2175,8 +2174,8 @@ export default function App() {
           <div className="welcome-banner">
             <h1>Olá{activePlayer === 'Ambos' ? ' cooperadores' : `, ${activePlayer}`}!</h1>
             <p>
-              {activePlayer === 'Ambos' 
-                ? 'Modo Cooperativo ativo. Vocês podem jogar os desafios diários juntos ou disputar uma corrida Blitz!' 
+              {activePlayer === 'Ambos'
+                ? 'Modo Cooperativo ativo. Vocês podem jogar os desafios diários juntos ou disputar uma corrida Blitz!'
                 : 'Modo Duelo Versus ativo. Desafie o outro jogador para disputar quem se sai melhor hoje!'}
             </p>
           </div>
@@ -2188,10 +2187,10 @@ export default function App() {
                 <div className="versus-summary-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   <span>⚔️ Duelo do Dia (Modo Versus)</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.05)', padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.7rem' }}>
-                    <span style={{ 
-                      width: '6px', 
-                      height: '6px', 
-                      borderRadius: '50%', 
+                    <span style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
                       backgroundColor: onlineUsers.includes(opponentName) ? '#10b981' : '#64748b',
                       boxShadow: onlineUsers.includes(opponentName) ? '0 0 6px #10b981' : 'none',
                       display: 'inline-block'
@@ -2202,12 +2201,12 @@ export default function App() {
                   </div>
                 </div>
                 <div className="versus-summary-desc">
-                  {versusMatchToday 
+                  {versusMatchToday
                     ? `Desafio Versus concluído hoje! Vencedor: ${versusMatchToday.winner === 'Empate' ? 'Empate 🤝' : '🏆 ' + versusMatchToday.winner}`
                     : `Desafie o outro jogador em tempo real nos 3 modos seguidos com palavras exclusivas.`}
                 </div>
               </div>
-              <button 
+              <button
                 className="versus-summary-btn"
                 disabled={!!versusMatchToday}
                 onClick={startVersusFlow}
@@ -2303,8 +2302,8 @@ export default function App() {
                 </div>
               </div>
 
-              <button 
-                className="challenge-btn" 
+              <button
+                className="challenge-btn"
                 style={{ background: 'linear-gradient(135deg, #f59e0b, #ec4899)', color: 'white', width: '100%', padding: '1rem' }}
                 onClick={handleStartBlitz}
               >
@@ -2345,7 +2344,7 @@ export default function App() {
             <>
               <h2 className="section-title"><Calendar size={22} color="var(--accent-cyan)" /> Desafios Cooperativos de Hoje ({todayStr})</h2>
               <div className="challenge-grid">
-                
+
                 {/* Mode 1 */}
                 <div className="challenge-card mode-1">
                   <div className="challenge-header">
@@ -2356,7 +2355,7 @@ export default function App() {
                   </div>
                   <h3 className="challenge-title">Termo</h3>
                   <p className="challenge-desc">Adivinhe uma única palavra de {todayChallenge ? todayChallenge.words.mode1.length : '5'} letras em até {todayChallenge ? todayChallenge.words.mode1.length + 1 : 6} tentativas.</p>
-                  
+
                   {todayResult?.mode1 && (
                     <div className="challenge-stats">
                       <div className="challenge-stat-row">
@@ -2373,8 +2372,8 @@ export default function App() {
                       </div>
                     </div>
                   )}
-                  
-                  <button 
+
+                  <button
                     className="challenge-btn"
                     disabled={!!todayResult?.mode1}
                     onClick={() => handleStartGame(1)}
@@ -2394,24 +2393,24 @@ export default function App() {
                   <h3 className="challenge-title">Dueto</h3>
                   <p className="challenge-desc">
                     Adivinhe duas palavras de{' '}
-                    {todayChallenge 
-                      ? todayChallenge.words.mode2.map(w => w.length).join(' e ') 
+                    {todayChallenge
+                      ? todayChallenge.words.mode2.map(w => w.length).join(' e ')
                       : 'tamanhos variados'}{' '}
                     letras simultaneamente em até{' '}
-                    {todayChallenge 
-                      ? Math.max(...todayChallenge.words.mode2.map(w => w.length)) + 1 
+                    {todayChallenge
+                      ? Math.max(...todayChallenge.words.mode2.map(w => w.length)) + 1
                       : 7}{' '}
                     tentativas. Palpites valem para ambas.
                   </p>
-                  
+
                   {todayResult?.mode2 && (
                     <div className="challenge-stats">
                       <div className="challenge-stat-row">
                         <span className="challenge-stat-label">Tentativas:</span>
                         <span className="challenge-stat-value">
                           {todayResult.mode2.attempts}/
-                          {todayChallenge 
-                            ? Math.max(...todayChallenge.words.mode2.map(w => w.length)) + 1 
+                          {todayChallenge
+                            ? Math.max(...todayChallenge.words.mode2.map(w => w.length)) + 1
                             : 7}
                         </span>
                       </div>
@@ -2425,8 +2424,8 @@ export default function App() {
                       </div>
                     </div>
                   )}
-                  
-                  <button 
+
+                  <button
                     className="challenge-btn"
                     disabled={!!todayResult?.mode2}
                     onClick={() => handleStartGame(2)}
@@ -2446,24 +2445,24 @@ export default function App() {
                   <h3 className="challenge-title">Quarteto</h3>
                   <p className="challenge-desc">
                     Adivinhe quatro palavras de{' '}
-                    {todayChallenge 
+                    {todayChallenge
                       ? todayChallenge.words.mode4.map(w => w.length).slice(0, -1).join(', ') + ' e ' + todayChallenge.words.mode4.slice(-1)[0].length
                       : 'tamanhos variados'}{' '}
                     letras simultaneamente em até{' '}
-                    {todayChallenge 
-                      ? Math.max(...todayChallenge.words.mode4.map(w => w.length)) + 1 
+                    {todayChallenge
+                      ? Math.max(...todayChallenge.words.mode4.map(w => w.length)) + 1
                       : 9}{' '}
                     tentativas. O teste supremo.
                   </p>
-                  
+
                   {todayResult?.mode4 && (
                     <div className="challenge-stats">
                       <div className="challenge-stat-row">
                         <span className="challenge-stat-label">Tentativas:</span>
                         <span className="challenge-stat-value">
                           {todayResult.mode4.attempts}/
-                          {todayChallenge 
-                            ? Math.max(...todayChallenge.words.mode4.map(w => w.length)) + 1 
+                          {todayChallenge
+                            ? Math.max(...todayChallenge.words.mode4.map(w => w.length)) + 1
                             : 9}
                         </span>
                       </div>
@@ -2477,8 +2476,8 @@ export default function App() {
                       </div>
                     </div>
                   )}
-                  
-                  <button 
+
+                  <button
                     className="challenge-btn"
                     disabled={!!todayResult?.mode4}
                     onClick={() => handleStartGame(4)}
@@ -2494,7 +2493,7 @@ export default function App() {
           {/* Stats & History Sections - Shown for individuals, records shown for Ambos */}
           {activePlayer !== 'Ambos' ? (
             <div className="stats-history-row">
-              
+
               {/* Player Stats Dashboard */}
               <div className="dashboard-panel">
                 <h2 className="section-title" style={{ marginBottom: '1.5rem' }}>
@@ -2566,7 +2565,7 @@ export default function App() {
           ) : (
             /* 'Ambos' Profile specific records grids and match history lists */
             <div className="stats-history-row">
-              
+
               {/* Recordes/Stats Cooperativos */}
               <div>
                 {/* Estatísticas Cooperativas */}
@@ -2615,7 +2614,7 @@ export default function App() {
                   <h2 className="section-title" style={{ marginBottom: '1.5rem' }}>
                     <Trophy size={20} color="var(--color-present)" /> Recordes Blitz (Gabriel + Alessandra)
                   </h2>
-                  
+
                   <div className="stats-cards-grid">
                     <div className="stat-mini-card" style={{ borderLeft: '3px solid var(--accent-cyan)' }}>
                       <span className="stat-mini-label">⏱️ Recorde 1 min</span>
@@ -2688,7 +2687,7 @@ export default function App() {
                             <span className="history-date">{b.date}</span>
                             <span className="history-words">Duração: {b.duration} min | Streak: {b.maxStreak} 🔥</span>
                           </div>
-                          
+
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <span style={{ fontSize: '1.4rem', fontWeight: '900', color: 'var(--color-present)' }}>{b.wordsSolved}</span>
                             <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: '600' }}>PALAVRAS</span>
@@ -2715,7 +2714,7 @@ export default function App() {
               <div className="game-title-info">
                 <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                   <span>
-                    {gameModeType === 'blitz' 
+                    {gameModeType === 'blitz'
                       ? `Modo Blitz`
                       : gameModeType === 'bomb'
                         ? 'Modo Bomba'
@@ -2730,7 +2729,7 @@ export default function App() {
                   )}
                 </h2>
                 <p>
-                  {gameModeType === 'blitz' 
+                  {gameModeType === 'blitz'
                     ? `Ambos (Gabriel + Alessandra) | Palavra ${blitzCurrentWordIdx + 1}`
                     : gameModeType === 'bomb'
                       ? `Jogador: ${activePlayer} | Tentativa única diária`
@@ -2800,8 +2799,8 @@ export default function App() {
                     const meta = getCrosswordCellMeta(row, col);
                     const solved = !!meta?.entries.every(entry => crosswordSolvedIds.includes(entry.id));
                     return meta ? (
-                      <label 
-                        key={meta.key} 
+                      <label
+                        key={meta.key}
                         className={`crossword-cell ${solved ? 'solved' : ''} ${isCellInActiveClue(row, col) ? 'active-word' : ''} ${crosswordFocusedKey === meta.key ? 'focused' : ''}`}
                       >
                         {meta.number && <span>{meta.number}</span>}
@@ -2824,12 +2823,12 @@ export default function App() {
                     );
                   })}
                 </div>
- 
+
                 <div className="crossword-clues">
                   <div className="crossword-clues-title">
                     <Sparkles size={18} color="var(--accent-cyan)" /> Pistas Diárias com IA
                   </div>
-                  
+
                   <div className="crossword-clues-sections">
                     <div className="crossword-clues-column">
                       <h4 className="clues-column-title">➡️ Horizontais</h4>
@@ -2856,7 +2855,7 @@ export default function App() {
                           ))}
                       </div>
                     </div>
- 
+
                     <div className="crossword-clues-column">
                       <h4 className="clues-column-title">⬇️ Verticais</h4>
                       <div className="clues-list">
@@ -2883,9 +2882,9 @@ export default function App() {
                       </div>
                     </div>
                   </div>
- 
+
                   {crosswordMessage && <div className="crossword-message">{crosswordMessage}</div>}
-                  
+
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
                     <button className="modal-close-btn" style={{ margin: 0 }} onClick={() => validateCrosswordEntry(crosswordSelectedId)}>
                       Validar Palavra
@@ -2899,10 +2898,10 @@ export default function App() {
                   </div>
                 </div>
               </div>
- 
+
               {/* On-screen virtual keyboard */}
               <div style={{ marginTop: '2.5rem', width: '100%' }}>
-                <Keyboard 
+                <Keyboard
                   onChar={handleCrosswordCharInput}
                   onDelete={handleCrosswordDeleteInput}
                   onEnter={handleCrosswordEnterInput}
@@ -2911,77 +2910,77 @@ export default function App() {
               </div>
             </div>
           ) : (
-          <div className={gameModeType === 'versus' ? 'versus-layout' : ''}>
-            <div>
-              <GameBoard 
-                mode={activeMode}
-                words={targetWords}
-                guesses={guesses}
-                currentGuess={currentGuess}
-                maxAttempts={maxAttempts}
-                shakeRowIndex={shakeRowIndex}
-              />
+            <div className={gameModeType === 'versus' ? 'versus-layout' : ''}>
+              <div>
+                <GameBoard
+                  mode={activeMode}
+                  words={targetWords}
+                  guesses={guesses}
+                  currentGuess={currentGuess}
+                  maxAttempts={maxAttempts}
+                  shakeRowIndex={shakeRowIndex}
+                />
 
-              <Keyboard 
-                onChar={handleCharInput}
-                onDelete={handleDeleteInput}
-                onEnter={handleEnterInput}
-                letterStatuses={aggregatedLetterStatuses()}
-              />
-            </div>
-
-            {/* Versus Opponent Live Tracker Sidepanel */}
-            {gameModeType === 'versus' && (
-              <div className="versus-opp-panel">
-                <div className="versus-opp-header">
-                  <div style={{ fontSize: '1.5rem' }}>{opponentName === 'Gabriel' ? '🧔' : '👩'}</div>
-                  <div style={{ textAlign: 'left' }}>
-                    <div className="versus-opp-name">{opponentName}</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Oponente em Tempo Real</div>
-                  </div>
-                  <div className="versus-opp-status">
-                    {oppState.completed ? 'Concluído 🏁' : 'Jogando ⚡'}
-                  </div>
-                </div>
-
-                <div className="versus-opp-round">
-                  <span>
-                    <strong>Rodada {oppState.round <= 3 ? oppState.round : 3}/3:</strong>{' '}
-                    {oppState.round === 1 ? 'Termo' : oppState.round === 2 ? 'Dueto' : 'Quarteto'}
-                  </span>
-                  <span>{oppState.progress}%</span>
-                </div>
-
-                <div className="versus-progress-bg">
-                  <div 
-                    className="versus-progress-bar" 
-                    style={{ width: `${oppState.progress}%` }}
-                  />
-                </div>
-
-                <div style={{ textAlign: 'left', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
-                  Progresso do Oponente:
-                </div>
-                <div className="versus-ticker">
-                  {oppState.ticker.slice(-5).map((line, idx) => {
-                    let textClass = 'versus-ticker-text';
-                    if (line.includes('resolveu') || line.includes('completou')) textClass += ' solved';
-                    else if (line.includes('enviou') || line.includes('iniciou')) textClass += ' action';
-
-                    const timestamp = line.substring(0, 8);
-                    const rest = line.substring(8);
-
-                    return (
-                      <div className="versus-ticker-line" key={idx}>
-                        <span className="versus-ticker-time">{timestamp}</span>
-                        <span className={textClass}>{rest}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+                <Keyboard
+                  onChar={handleCharInput}
+                  onDelete={handleDeleteInput}
+                  onEnter={handleEnterInput}
+                  letterStatuses={aggregatedLetterStatuses()}
+                />
               </div>
-            )}
-          </div>
+
+              {/* Versus Opponent Live Tracker Sidepanel */}
+              {gameModeType === 'versus' && (
+                <div className="versus-opp-panel">
+                  <div className="versus-opp-header">
+                    <div style={{ fontSize: '1.5rem' }}>{opponentName === 'Gabriel' ? '🧔' : '👩'}</div>
+                    <div style={{ textAlign: 'left' }}>
+                      <div className="versus-opp-name">{opponentName}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Oponente em Tempo Real</div>
+                    </div>
+                    <div className="versus-opp-status">
+                      {oppState.completed ? 'Concluído 🏁' : 'Jogando ⚡'}
+                    </div>
+                  </div>
+
+                  <div className="versus-opp-round">
+                    <span>
+                      <strong>Rodada {oppState.round <= 3 ? oppState.round : 3}/3:</strong>{' '}
+                      {oppState.round === 1 ? 'Termo' : oppState.round === 2 ? 'Dueto' : 'Quarteto'}
+                    </span>
+                    <span>{oppState.progress}%</span>
+                  </div>
+
+                  <div className="versus-progress-bg">
+                    <div
+                      className="versus-progress-bar"
+                      style={{ width: `${oppState.progress}%` }}
+                    />
+                  </div>
+
+                  <div style={{ textAlign: 'left', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
+                    Progresso do Oponente:
+                  </div>
+                  <div className="versus-ticker">
+                    {oppState.ticker.slice(-5).map((line, idx) => {
+                      let textClass = 'versus-ticker-text';
+                      if (line.includes('resolveu') || line.includes('completou')) textClass += ' solved';
+                      else if (line.includes('enviou') || line.includes('iniciou')) textClass += ' action';
+
+                      const timestamp = line.substring(0, 8);
+                      const rest = line.substring(8);
+
+                      return (
+                        <div className="versus-ticker-line" key={idx}>
+                          <span className="versus-ticker-time">{timestamp}</span>
+                          <span className={textClass}>{rest}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Individual Game Result Modal */}
@@ -2991,8 +2990,8 @@ export default function App() {
                 <div className="modal-icon">{modalSuccess ? '🎉' : '💀'}</div>
                 <h2 className="modal-title">{modalSuccess ? 'Vitória!' : 'Derrota!'}</h2>
                 <p className="modal-subtitle">
-                  {modalSuccess 
-                    ? `Parabéns, ${activePlayer}! Você completou este desafio com sucesso.` 
+                  {modalSuccess
+                    ? `Parabéns, ${activePlayer}! Você completou este desafio com sucesso.`
                     : `Infelizmente você não conseguiu descobrir todas as palavras secreta(s).`}
                 </p>
 
