@@ -27,7 +27,7 @@ export interface Challenge {
 export interface SpecialModeResult {
   playerName: 'Gabriel' | 'Alessandra' | 'Ambos';
   date: string;
-  mode: 'bomb' | 'crossword' | 'blitz';
+  mode: 'bomb' | 'crossword' | 'blitz' | 'afogado';
   success: boolean;
   score: number;
   time: number;
@@ -296,6 +296,7 @@ export async function syncSupabaseData() {
       gabrielBomb: row.gabriel_bomb_score || 0,
       gabrielCrossword: row.gabriel_crossword_score || 0,
       gabrielBlitz: row.gabriel_blitz_score || 0,
+      gabrielAfogado: row.gabriel_afogado_score || 0,
       gabrielTotal: row.gabriel_total_score || 0,
       alessandraTermo: row.alessandra_termo_score || 0,
       alessandraDueto: row.alessandra_dueto_score || 0,
@@ -303,6 +304,7 @@ export async function syncSupabaseData() {
       alessandraBomb: row.alessandra_bomb_score || 0,
       alessandraCrossword: row.alessandra_crossword_score || 0,
       alessandraBlitz: row.alessandra_blitz_score || 0,
+      alessandraAfogado: row.alessandra_afogado_score || 0,
       alessandraTotal: row.alessandra_total_score || 0,
       winner: row.winner || 'Empate'
     }))));
@@ -325,6 +327,12 @@ export function initLocalStorage() {
   }
   if (!localStorage.getItem('termo_blitz_matches')) {
     localStorage.setItem('termo_blitz_matches', JSON.stringify([]));
+  }
+  if (!localStorage.getItem('termo_afogado_records')) {
+    localStorage.setItem('termo_afogado_records', JSON.stringify([]));
+  }
+  if (!localStorage.getItem('termo_afogado_matches')) {
+    localStorage.setItem('termo_afogado_matches', JSON.stringify([]));
   }
   if (!localStorage.getItem('termo_special_results')) {
     localStorage.setItem('termo_special_results', JSON.stringify([]));
@@ -836,6 +844,7 @@ export interface VersusResult {
   gabrielBomb?: number;
   gabrielCrossword?: number;
   gabrielBlitz?: number;
+  gabrielAfogado?: number;
   gabrielTotal: number;
   alessandraTermo: number;
   alessandraDueto: number;
@@ -843,6 +852,7 @@ export interface VersusResult {
   alessandraBomb?: number;
   alessandraCrossword?: number;
   alessandraBlitz?: number;
+  alessandraAfogado?: number;
   alessandraTotal: number;
   winner: 'Gabriel' | 'Alessandra' | 'Empate';
 }
@@ -880,6 +890,7 @@ export function saveVersusMatch(match: VersusResult) {
     gabriel_bomb_score: match.gabrielBomb || 0,
     gabriel_crossword_score: match.gabrielCrossword || 0,
     gabriel_blitz_score: match.gabrielBlitz || 0,
+    gabriel_afogado_score: match.gabrielAfogado || 0,
     gabriel_total_score: match.gabrielTotal,
     alessandra_termo_score: match.alessandraTermo,
     alessandra_dueto_score: match.alessandraDueto,
@@ -887,6 +898,7 @@ export function saveVersusMatch(match: VersusResult) {
     alessandra_bomb_score: match.alessandraBomb || 0,
     alessandra_crossword_score: match.alessandraCrossword || 0,
     alessandra_blitz_score: match.alessandraBlitz || 0,
+    alessandra_afogado_score: match.alessandraAfogado || 0,
     alessandra_total_score: match.alessandraTotal,
     winner: match.winner
   }, { onConflict: 'date' }).then(({ error }) => {
@@ -1224,7 +1236,7 @@ export function getCrosswordForDate(dateStr: string, difficulty: 'facil' | 'medi
 export function getSpecialResultForDate(
   playerName: 'Gabriel' | 'Alessandra' | 'Ambos',
   dateStr: string,
-  mode: 'bomb' | 'crossword' | 'blitz'
+  mode: 'bomb' | 'crossword' | 'blitz' | 'afogado'
 ): SpecialModeResult | null {
   initLocalStorage();
   const results: SpecialModeResult[] = JSON.parse(localStorage.getItem('termo_special_results') || '[]');
@@ -1693,6 +1705,102 @@ export async function getDbStatsFromSupabase() {
     console.error("Error fetching db stats from Supabase:", err);
     return { total: 0, neverUsed: 0, usedOnce: 0, usedMultiple: 0 };
   }
+}
+
+// === MODO AFOGADO ===
+
+export interface AfogadoMatch {
+  date: string;
+  timeSurvived: number; // in seconds
+  wordsSolved: number;
+  maxStreak: number;
+  dicasUsed: number;
+  score: number;
+  playerName: string;
+}
+
+export interface AfogadoRecord {
+  maxWordsSolved: number;
+  maxScore: number;
+  maxStreak: number;
+  maxTimeSurvived: number;
+  playerName: string;
+}
+
+export function getAfogadoHistory(): AfogadoMatch[] {
+  initLocalStorage();
+  return JSON.parse(localStorage.getItem('termo_afogado_matches') || '[]');
+}
+
+export function saveAfogadoMatch(match: AfogadoMatch) {
+  initLocalStorage();
+  const matches: AfogadoMatch[] = JSON.parse(localStorage.getItem('termo_afogado_matches') || '[]');
+  matches.unshift(match);
+  localStorage.setItem('termo_afogado_matches', JSON.stringify(matches));
+
+  const records: AfogadoRecord[] = JSON.parse(localStorage.getItem('termo_afogado_records') || '[]');
+  const existingIndex = records.findIndex(r => r.playerName === match.playerName);
+  if (existingIndex !== -1) {
+    const r = records[existingIndex];
+    r.maxWordsSolved = Math.max(r.maxWordsSolved, match.wordsSolved);
+    r.maxScore = Math.max(r.maxScore, match.score);
+    r.maxStreak = Math.max(r.maxStreak, match.maxStreak);
+    r.maxTimeSurvived = Math.max(r.maxTimeSurvived, match.timeSurvived);
+  } else {
+    records.push({
+      playerName: match.playerName,
+      maxWordsSolved: match.wordsSolved,
+      maxScore: match.score,
+      maxStreak: match.maxStreak,
+      maxTimeSurvived: match.timeSurvived
+    });
+  }
+  localStorage.setItem('termo_afogado_records', JSON.stringify(records));
+}
+
+export function getAfogadoRecords(): AfogadoRecord[] {
+  initLocalStorage();
+  return JSON.parse(localStorage.getItem('termo_afogado_records') || '[]');
+}
+
+export async function getAfogadoWordForIndex(
+  dateStr: string,
+  index: number,
+  difficulty: 'easy' | 'medium' | 'difficult',
+  isVersus: boolean
+): Promise<string> {
+  let seed: number;
+  if (isVersus) {
+    seed = getSeedForDate(`${dateStr}_afogado_${index}`);
+  } else {
+    seed = Math.floor(Math.random() * 1000000);
+  }
+
+  let length = 5;
+  if (difficulty === 'easy') {
+    length = 4 + (seed % 2); // 4 or 5
+  } else if (difficulty === 'medium') {
+    length = 6 + (seed % 2); // 6 or 7
+  } else {
+    length = 8 + (seed % 3); // 8, 9, or 10
+  }
+
+  const result = await selectSupabaseWords(length, 1, seed);
+  const word = result[0]?.word;
+  if (!word) {
+    const fallbackEasy = ['casa', 'gato', 'vida', 'bola', 'dado', 'fogo', 'agua', 'mato', 'copo', 'foto'];
+    const fallbackMedium = ['escada', 'janela', 'montar', 'cadeira', 'caneta', 'sapato', 'parede', 'camisa', 'abacaxi', 'buzina'];
+    const fallbackDifficult = ['horizonte', 'descobrir', 'ferramenta', 'computador', 'televisao', 'borboleta', 'felicidade', 'gravidade', 'dinossauro', 'astronomia'];
+
+    const fallbackList = difficulty === 'easy' ? fallbackEasy : difficulty === 'medium' ? fallbackMedium : fallbackDifficult;
+    return fallbackList[seed % fallbackList.length];
+  }
+
+  incrementWordUsage(word).catch(err =>
+    console.error('Failed to increment afogado word usage:', err)
+  );
+
+  return word;
 }
 
 

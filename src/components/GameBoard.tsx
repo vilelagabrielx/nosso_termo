@@ -9,6 +9,7 @@ interface GameBoardProps {
   shakeRowIndex: number | null;
   onCellClick?: (cellIndex: number) => void;
   focusedCellIndex?: number | null;
+  revealedIndices?: Set<number>;
 }
 
 // Wordle evaluation function
@@ -55,6 +56,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   shakeRowIndex,
   onCellClick,
   focusedCellIndex,
+  revealedIndices,
 }) => {
   // Find where each board was solved (index of first guess matching the word)
   const getSolvedIndex = (boardIndex: number): number | null => {
@@ -124,11 +126,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                       // We can base this on whether a row has a submitted guess
                       const isFlipped = showGuess && !isAfterSolve;
                       const isFocused = isCurrentRow && focusedCellIndex === cellIndex;
+                      const isRevealedHint = isCurrentRow && !isSolved && revealedIndices?.has(cellIndex);
 
                       return (
                         <div
                           key={cellIndex}
-                          className={`game-cell ${status} ${isFlipped ? 'flip' : ''} ${isFocused ? 'focused' : ''}`}
+                          className={`game-cell ${status} ${isFlipped ? 'flip' : ''} ${isFocused ? 'focused' : ''} ${isRevealedHint ? 'revealed-hint' : ''}`}
                           style={{
                             animationDelay: isFlipped ? `${cellIndex * 100}ms` : '0ms',
                             cursor: (isCurrentRow && !isSolved) ? 'pointer' : 'default'

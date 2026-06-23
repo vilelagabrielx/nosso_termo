@@ -32,13 +32,19 @@ import {
   getAmbosDailyHistory,
   ensureWordsLoaded,
   validateWord,
+  getAfogadoHistory,
+  getAfogadoRecords,
+  saveAfogadoMatch,
+  getAfogadoWordForIndex,
   type Challenge,
   type DailyResult,
   type VersusResult,
   type BlitzMatch,
   type BlitzRecord,
   type SpecialModeResult,
-  type CrosswordChallenge
+  type CrosswordChallenge,
+  type AfogadoMatch,
+  type AfogadoRecord
 } from './services/mockDb';
 import { GameBoard, getLetterStatuses } from './components/GameBoard';
 import { supabase } from './services/supabaseClient';
@@ -57,7 +63,8 @@ import {
   Trophy,
   Bomb,
   Grid3X3,
-  Sparkles
+  Sparkles,
+  HelpCircle
 } from 'lucide-react';
 
 interface OpponentState {
@@ -73,6 +80,7 @@ interface OpponentState {
   bombScore?: number;
   crosswordScore?: number;
   blitzScore?: number;
+  afogadoScore?: number;
   totalScore: number;
   completed: boolean;
 }
@@ -85,7 +93,7 @@ export function formatTime(seconds: number): string {
 
 export default function App() {
   // App navigation state
-  const [view, setView] = useState<'dashboard' | 'playing' | 'lobby' | 'versus-recap' | 'versus-end' | 'blitz-end' | 'admin'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'playing' | 'lobby' | 'versus-recap' | 'versus-end' | 'blitz-end' | 'afogado-end' | 'admin'>('dashboard');
   const [activePlayer, setActivePlayerState] = useState<'Gabriel' | 'Alessandra' | 'Ambos'>('Gabriel');
   const [todayChallenge, setTodayChallenge] = useState<Challenge | null>(null);
   const [todayResult, setTodayResult] = useState<DailyResult | null>(null);
@@ -133,6 +141,7 @@ export default function App() {
   const [bombResultToday, setBombResultToday] = useState<SpecialModeResult | null>(null);
   const [crosswordResultToday, setCrosswordResultToday] = useState<SpecialModeResult | null>(null);
   const [blitzResultToday, setBlitzResultToday] = useState<SpecialModeResult | null>(null);
+  const [afogadoResultToday, setAfogadoResultToday] = useState<SpecialModeResult | null>(null);
   const [bombCharge, setBombCharge] = useState<number>(50);
   const [bombLastDelta, setBombLastDelta] = useState<number>(0);
   const [crosswordChallenge, setCrosswordChallenge] = useState<CrosswordChallenge | null>(null);
@@ -144,6 +153,25 @@ export default function App() {
   const [crosswordSolvedIds, setCrosswordSolvedIds] = useState<string[]>([]);
   const [crosswordMessage, setCrosswordMessage] = useState<string>('');
 
+  // Afogado States
+  const [afogadoHistoryList, setAfogadoHistoryList] = useState<AfogadoMatch[]>([]);
+  const [afogadoRecordsList, setAfogadoRecordsList] = useState<AfogadoRecord[]>([]);
+  const [afogadoWaterLevel, setAfogadoWaterLevel] = useState<number>(0);
+  const [afogadoScore, setAfogadoScore] = useState<number>(0);
+  const [afogadoSolvedCount, setAfogadoSolvedCount] = useState<number>(0);
+  const [afogadoCurrentStreak, setAfogadoCurrentStreak] = useState<number>(0);
+  const [afogadoMaxStreak, setAfogadoMaxStreak] = useState<number>(0);
+  const [afogadoElapsedTime, setAfogadoElapsedTime] = useState<number>(0);
+  const [afogadoBreathPoints, setAfogadoBreathPoints] = useState<number>(0);
+  const [afogadoBreathCharges, setAfogadoBreathCharges] = useState<number>(0);
+  const [afogadoBreathActive, setAfogadoBreathActive] = useState<boolean>(false);
+  const [afogadoBreathActiveTimeLeft, setAfogadoBreathActiveTimeLeft] = useState<number>(0);
+  const [afogadoCurrentWave, setAfogadoCurrentWave] = useState<'calmaria' | 'mare_alta' | 'tempestade' | 'recuperacao'>('calmaria');
+  const [afogadoWordAutoRevealCount, setAfogadoWordAutoRevealCount] = useState<number>(0);
+  const [afogadoRevealedIndices, setAfogadoRevealedIndices] = useState<Set<number>>(new Set());
+  const [afogadoWordRevealTimer, setAfogadoWordRevealTimer] = useState<number>(0);
+  const [afogadoDicasUsed, setAfogadoDicasUsed] = useState<number>(0);
+
   // Admin Panel States
   const [adminStats, setAdminStats] = useState<any>({ total: 0, neverUsed: 0, usedOnce: 0, usedMultiple: 0, lowUsagePercent: 0, lastJob: null, pendingJobsCount: 0 });
   const [generationJobs, setGenerationJobs] = useState<any[]>([]);
@@ -151,8 +179,8 @@ export default function App() {
   const [configBatchSize, setConfigBatchSize] = useState<number>(250);
 
   // Gabriel & Alessandra Versus Scores accumulated
-  const [gabrielVersusScores, setGabrielVersusScores] = useState({ termo: 0, dueto: 0, quarteto: 0, bomb: 0, crossword: 0, blitz: 0, total: 0 });
-  const [alessandraVersusScores, setAlessandraVersusScores] = useState({ termo: 0, dueto: 0, quarteto: 0, bomb: 0, crossword: 0, blitz: 0, total: 0 });
+  const [gabrielVersusScores, setGabrielVersusScores] = useState({ termo: 0, dueto: 0, quarteto: 0, bomb: 0, crossword: 0, blitz: 0, afogado: 0, total: 0 });
+  const [alessandraVersusScores, setAlessandraVersusScores] = useState({ termo: 0, dueto: 0, quarteto: 0, bomb: 0, crossword: 0, blitz: 0, afogado: 0, total: 0 });
 
   // Real-time Opponent Sim state
   const [oppState, setOppState] = useState<OpponentState>({
@@ -168,12 +196,13 @@ export default function App() {
     bombScore: 0,
     crosswordScore: 0,
     blitzScore: 0,
+    afogadoScore: 0,
     totalScore: 0,
     completed: false
   });
 
   // Gameplay state
-  const [gameModeType, setGameModeType] = useState<'daily' | 'versus' | 'blitz' | 'bomb' | 'crossword'>('daily');
+  const [gameModeType, setGameModeType] = useState<'daily' | 'versus' | 'blitz' | 'bomb' | 'crossword' | 'afogado'>('daily');
   const [activeMode, setActiveMode] = useState<1 | 2 | 4>(1);
   const [targetWords, setTargetWords] = useState<string[]>([]);
   const [guesses, setGuesses] = useState<string[]>([]);
@@ -239,6 +268,26 @@ export default function App() {
       });
     }
   }, [targetWords]);
+
+  // Synchronize Afogado pre-revealed letters into the current guess string state
+  useEffect(() => {
+    if (gameModeType === 'afogado' && targetWords.length > 0) {
+      const target = targetWords[0];
+      setCurrentGuess(prev => {
+        const letters = prev.split('');
+        // Pad array if length is less than target word
+        while (letters.length < target.length) {
+          letters.push(' ');
+        }
+        for (let i = 0; i < target.length; i++) {
+          if (afogadoRevealedIndices.has(i)) {
+            letters[i] = target[i];
+          }
+        }
+        return letters.slice(0, target.length).join('');
+      });
+    }
+  }, [afogadoRevealedIndices, gameModeType, targetWords]);
 
   const gabrielVersusScoresRef = useRef(gabrielVersusScores);
   const alessandraVersusScoresRef = useRef(alessandraVersusScores);
@@ -320,8 +369,9 @@ export default function App() {
                 if (game === 'bomb') updated.bomb = score;
                 if (game === 'crossword') updated.crossword = score;
                 if (game === 'blitz') updated.blitz = score;
+                if (game === 'afogado') updated.afogado = score;
               }
-              updated.total = updated.termo + updated.dueto + updated.quarteto + (updated.bomb || 0) + (updated.crossword || 0) + (updated.blitz || 0);
+              updated.total = updated.termo + updated.dueto + updated.quarteto + (updated.bomb || 0) + (updated.crossword || 0) + (updated.blitz || 0) + (updated.afogado || 0);
 
               const aScores = alessandraVersusScoresRef.current;
               const finalizedVersus: VersusResult = {
@@ -332,6 +382,7 @@ export default function App() {
                 gabrielBomb: updated.bomb,
                 gabrielCrossword: updated.crossword,
                 gabrielBlitz: updated.blitz,
+                gabrielAfogado: updated.afogado,
                 gabrielTotal: updated.total,
                 alessandraTermo: aScores.termo,
                 alessandraDueto: aScores.dueto,
@@ -339,6 +390,7 @@ export default function App() {
                 alessandraBomb: aScores.bomb,
                 alessandraCrossword: aScores.crossword,
                 alessandraBlitz: aScores.blitz,
+                alessandraAfogado: aScores.afogado,
                 alessandraTotal: aScores.total,
                 winner: updated.total > aScores.total ? 'Gabriel' : aScores.total > updated.total ? 'Alessandra' : 'Empate'
               };
@@ -358,8 +410,9 @@ export default function App() {
                 if (game === 'bomb') updated.bomb = score;
                 if (game === 'crossword') updated.crossword = score;
                 if (game === 'blitz') updated.blitz = score;
+                if (game === 'afogado') updated.afogado = score;
               }
-              updated.total = updated.termo + updated.dueto + updated.quarteto + (updated.bomb || 0) + (updated.crossword || 0) + (updated.blitz || 0);
+              updated.total = updated.termo + updated.dueto + updated.quarteto + (updated.bomb || 0) + (updated.crossword || 0) + (updated.blitz || 0) + (updated.afogado || 0);
 
               const gScores = gabrielVersusScoresRef.current;
               const finalizedVersus: VersusResult = {
@@ -370,6 +423,7 @@ export default function App() {
                 gabrielBomb: gScores.bomb,
                 gabrielCrossword: gScores.crossword,
                 gabrielBlitz: gScores.blitz,
+                gabrielAfogado: gScores.afogado,
                 gabrielTotal: gScores.total,
                 alessandraTermo: updated.termo,
                 alessandraDueto: updated.dueto,
@@ -377,6 +431,7 @@ export default function App() {
                 alessandraBomb: updated.bomb,
                 alessandraCrossword: updated.crossword,
                 alessandraBlitz: updated.blitz,
+                alessandraAfogado: updated.afogado,
                 alessandraTotal: updated.total,
                 winner: gScores.total > updated.total ? 'Gabriel' : updated.total > gScores.total ? 'Alessandra' : 'Empate'
               };
@@ -406,6 +461,7 @@ export default function App() {
               bombScore: gUpdate?.game === 'bomb' ? gUpdate.score : data.bombScore !== undefined ? data.bombScore : prev.bombScore,
               crosswordScore: gUpdate?.game === 'crossword' ? gUpdate.score : data.crosswordScore !== undefined ? data.crosswordScore : prev.crosswordScore,
               blitzScore: gUpdate?.game === 'blitz' ? gUpdate.score : data.blitzScore !== undefined ? data.blitzScore : prev.blitzScore,
+              afogadoScore: gUpdate?.game === 'afogado' ? gUpdate.score : data.afogadoScore !== undefined ? data.afogadoScore : prev.afogadoScore,
               totalScore: data.totalScore !== undefined ? data.totalScore : (opponent === 'Gabriel' ? gabrielVersusScoresRef.current.total : alessandraVersusScoresRef.current.total),
               ticker: nextTicker
             };
@@ -456,7 +512,7 @@ export default function App() {
     });
   };
 
-  const updateVersusScore = (game: 'termo' | 'dueto' | 'quarteto' | 'bomb' | 'crossword' | 'blitz', score: number) => {
+  const updateVersusScore = (game: 'termo' | 'dueto' | 'quarteto' | 'bomb' | 'crossword' | 'blitz' | 'afogado', score: number) => {
     if (activePlayer === 'Ambos') return;
 
     const gScores = { ...gabrielVersusScoresRef.current };
@@ -469,7 +525,8 @@ export default function App() {
       if (game === 'bomb') gScores.bomb = score;
       if (game === 'crossword') gScores.crossword = score;
       if (game === 'blitz') gScores.blitz = score;
-      gScores.total = gScores.termo + gScores.dueto + gScores.quarteto + (gScores.bomb || 0) + (gScores.crossword || 0) + (gScores.blitz || 0);
+      if (game === 'afogado') gScores.afogado = score;
+      gScores.total = gScores.termo + gScores.dueto + gScores.quarteto + (gScores.bomb || 0) + (gScores.crossword || 0) + (gScores.blitz || 0) + (gScores.afogado || 0);
       setGabrielVersusScores(gScores);
     } else {
       if (game === 'termo') aScores.termo = score;
@@ -478,7 +535,8 @@ export default function App() {
       if (game === 'bomb') aScores.bomb = score;
       if (game === 'crossword') aScores.crossword = score;
       if (game === 'blitz') aScores.blitz = score;
-      aScores.total = aScores.termo + aScores.dueto + aScores.quarteto + (aScores.bomb || 0) + (aScores.crossword || 0) + (aScores.blitz || 0);
+      if (game === 'afogado') aScores.afogado = score;
+      aScores.total = aScores.termo + aScores.dueto + aScores.quarteto + (aScores.bomb || 0) + (aScores.crossword || 0) + (aScores.blitz || 0) + (aScores.afogado || 0);
       setAlessandraVersusScores(aScores);
     }
 
@@ -499,6 +557,7 @@ export default function App() {
       gabrielBomb: activePlayer === 'Gabriel' ? gScores.bomb : gabrielVersusScoresRef.current.bomb,
       gabrielCrossword: activePlayer === 'Gabriel' ? gScores.crossword : gabrielVersusScoresRef.current.crossword,
       gabrielBlitz: activePlayer === 'Gabriel' ? gScores.blitz : gabrielVersusScoresRef.current.blitz,
+      gabrielAfogado: activePlayer === 'Gabriel' ? gScores.afogado : gabrielVersusScoresRef.current.afogado,
       gabrielTotal: finalGabrielTotal,
       alessandraTermo: activePlayer === 'Alessandra' ? aScores.termo : alessandraVersusScoresRef.current.termo,
       alessandraDueto: activePlayer === 'Alessandra' ? aScores.dueto : alessandraVersusScoresRef.current.dueto,
@@ -506,6 +565,7 @@ export default function App() {
       alessandraBomb: activePlayer === 'Alessandra' ? aScores.bomb : alessandraVersusScoresRef.current.bomb,
       alessandraCrossword: activePlayer === 'Alessandra' ? aScores.crossword : alessandraVersusScoresRef.current.crossword,
       alessandraBlitz: activePlayer === 'Alessandra' ? aScores.blitz : alessandraVersusScoresRef.current.blitz,
+      alessandraAfogado: activePlayer === 'Alessandra' ? aScores.afogado : alessandraVersusScoresRef.current.afogado,
       alessandraTotal: finalAlessandraTotal,
       winner: winner
     };
@@ -580,9 +640,14 @@ export default function App() {
       setBombResultToday(getSpecialResultForDate(playerName, todayStr, 'bomb'));
       setCrosswordResultToday(getSpecialResultForDate(playerName, todayStr, 'crossword'));
       setBlitzResultToday(getSpecialResultForDate(playerName, todayStr, 'blitz'));
+      setAfogadoResultToday(getSpecialResultForDate(playerName, todayStr, 'afogado'));
 
       const stats = getPlayerStats(playerName);
       setPlayerStats(stats);
+
+      // Load Afogado lists always
+      setAfogadoRecordsList(getAfogadoRecords());
+      setAfogadoHistoryList(getAfogadoHistory());
 
       if (playerName !== 'Ambos') {
         const vMatch = getVersusMatchForDate(todayStr);
@@ -596,6 +661,7 @@ export default function App() {
             bomb: vMatch.gabrielBomb || 0,
             crossword: vMatch.gabrielCrossword || 0,
             blitz: vMatch.gabrielBlitz || 0,
+            afogado: vMatch.gabrielAfogado || 0,
             total: vMatch.gabrielTotal || 0
           });
           setAlessandraVersusScores({
@@ -605,6 +671,7 @@ export default function App() {
             bomb: vMatch.alessandraBomb || 0,
             crossword: vMatch.alessandraCrossword || 0,
             blitz: vMatch.alessandraBlitz || 0,
+            afogado: vMatch.alessandraAfogado || 0,
             total: vMatch.alessandraTotal || 0
           });
 
@@ -616,6 +683,7 @@ export default function App() {
           const oppBomb = oppName === 'Gabriel' ? (vMatch.gabrielBomb || 0) : (vMatch.alessandraBomb || 0);
           const oppCrossword = oppName === 'Gabriel' ? (vMatch.gabrielCrossword || 0) : (vMatch.alessandraCrossword || 0);
           const oppBlitz = oppName === 'Gabriel' ? (vMatch.gabrielBlitz || 0) : (vMatch.alessandraBlitz || 0);
+          const oppAfogado = oppName === 'Gabriel' ? (vMatch.gabrielAfogado || 0) : (vMatch.alessandraAfogado || 0);
           const oppTotal = oppName === 'Gabriel' ? vMatch.gabrielTotal : vMatch.alessandraTotal;
           let oppRound = 1;
           let oppCompleted = false;
@@ -638,11 +706,12 @@ export default function App() {
             bombScore: oppBomb,
             crosswordScore: oppCrossword,
             blitzScore: oppBlitz,
+            afogadoScore: oppAfogado,
             totalScore: oppTotal
           }));
         } else {
-          setGabrielVersusScores({ termo: 0, dueto: 0, quarteto: 0, bomb: 0, crossword: 0, blitz: 0, total: 0 });
-          setAlessandraVersusScores({ termo: 0, dueto: 0, quarteto: 0, bomb: 0, crossword: 0, blitz: 0, total: 0 });
+          setGabrielVersusScores({ termo: 0, dueto: 0, quarteto: 0, bomb: 0, crossword: 0, blitz: 0, afogado: 0, total: 0 });
+          setAlessandraVersusScores({ termo: 0, dueto: 0, quarteto: 0, bomb: 0, crossword: 0, blitz: 0, afogado: 0, total: 0 });
           setOppState(prev => ({
             ...prev,
             round: 1,
@@ -674,6 +743,10 @@ export default function App() {
 
         const bHist = getBlitzHistory();
         setBlitzHistoryList(bHist);
+
+        // Load Afogado
+        setAfogadoRecordsList(getAfogadoRecords());
+        setAfogadoHistoryList(getAfogadoHistory());
       }
 
       setHistoryList(getDailyHistoryList());
@@ -998,7 +1071,26 @@ export default function App() {
     const wordLen = getActiveGuessLen();
     if (guesses.length >= maxAttempts || showGameModal) return;
 
-    const targetIdx = focusedCharIndex !== null ? focusedCharIndex : currentGuess.indexOf(' ');
+    let targetIdx = focusedCharIndex !== null ? focusedCharIndex : currentGuess.indexOf(' ');
+    
+    // Skip pre-revealed letter cells in Afogado
+    if (gameModeType === 'afogado' && targetIdx !== -1 && afogadoRevealedIndices.has(targetIdx)) {
+      let nextAvailable = -1;
+      const letters = currentGuess.split('');
+      for (let i = 0; i < wordLen; i++) {
+        if (letters[i] === ' ' && !afogadoRevealedIndices.has(i)) {
+          nextAvailable = i;
+          break;
+        }
+      }
+      if (nextAvailable !== -1) {
+        targetIdx = nextAvailable;
+        setFocusedCharIndex(nextAvailable);
+      } else {
+        return;
+      }
+    }
+
     if (targetIdx !== -1 && targetIdx < wordLen) {
       setCurrentGuess(prev => {
         const letters = prev.split('');
@@ -1006,14 +1098,24 @@ export default function App() {
         return letters.join('');
       });
 
-      const nextIdx = targetIdx + 1;
+      let nextIdx = targetIdx + 1;
+      // Skip pre-revealed indexes when moving focus forward
+      while (nextIdx < wordLen && gameModeType === 'afogado' && afogadoRevealedIndices.has(nextIdx)) {
+        nextIdx++;
+      }
+
       if (nextIdx < wordLen) {
         setFocusedCharIndex(nextIdx);
       } else {
-        // If reached the end of the word, find first remaining empty (space) cell
         const letters = currentGuess.split('');
         letters[targetIdx] = char;
-        const firstEmpty = letters.indexOf(' ');
+        let firstEmpty = -1;
+        for (let i = 0; i < wordLen; i++) {
+          if (letters[i] === ' ' && (gameModeType !== 'afogado' || !afogadoRevealedIndices.has(i))) {
+            firstEmpty = i;
+            break;
+          }
+        }
         if (firstEmpty !== -1) {
           setFocusedCharIndex(firstEmpty);
         } else {
@@ -1029,24 +1131,42 @@ export default function App() {
 
     const letters = currentGuess.split('');
     if (focusedCharIndex !== null) {
+      // Lock deleting pre-revealed cells in Afogado
+      if (gameModeType === 'afogado' && afogadoRevealedIndices.has(focusedCharIndex)) {
+        let prevEditable = -1;
+        for (let i = focusedCharIndex - 1; i >= 0; i--) {
+          if (!afogadoRevealedIndices.has(i)) {
+            prevEditable = i;
+            break;
+          }
+        }
+        if (prevEditable !== -1) {
+          setFocusedCharIndex(prevEditable);
+        }
+        return;
+      }
+
       if (letters[focusedCharIndex] !== ' ') {
-        // Clear character in current cell
         letters[focusedCharIndex] = ' ';
         setCurrentGuess(letters.join(''));
       } else {
-        // Cell is already empty, move focus back and clear previous cell
-        if (focusedCharIndex > 0) {
-          const prevIdx = focusedCharIndex - 1;
-          letters[prevIdx] = ' ';
+        let prevEditable = -1;
+        for (let i = focusedCharIndex - 1; i >= 0; i--) {
+          if (gameModeType !== 'afogado' || !afogadoRevealedIndices.has(i)) {
+            prevEditable = i;
+            break;
+          }
+        }
+        if (prevEditable !== -1) {
+          letters[prevEditable] = ' ';
           setCurrentGuess(letters.join(''));
-          setFocusedCharIndex(prevIdx);
+          setFocusedCharIndex(prevEditable);
         }
       }
     } else {
-      // Find the last non-empty character to delete
       let deleteIdx = -1;
       for (let i = wordLen - 1; i >= 0; i--) {
-        if (letters[i] !== ' ') {
+        if (letters[i] !== ' ' && (gameModeType !== 'afogado' || !afogadoRevealedIndices.has(i))) {
           deleteIdx = i;
           break;
         }
@@ -1111,6 +1231,102 @@ export default function App() {
           success ? `Carga final: ${finalCharge}%` : exploded ? 'A bomba chegou a 100%.' : `Carga final: ${finalCharge}%`,
           score
         );
+      }
+      return;
+    }
+
+    if (gameModeType === 'afogado') {
+      const target = targetWords[0];
+      const success = currentGuess === target;
+
+      if (success) {
+        let basePoints = 50;
+        if (afogadoCurrentWave === 'mare_alta') basePoints = 100;
+        else if (afogadoCurrentWave === 'tempestade') basePoints = 200;
+
+        const revealMultiplier = Math.max(0.1, 1 - afogadoWordAutoRevealCount * 0.25);
+        const streakScale = Math.min(2.0, 1 + afogadoCurrentStreak * 0.1);
+        const earnedPoints = Math.round(basePoints * revealMultiplier * streakScale);
+
+        let breathGain = 10;
+        if (afogadoCurrentWave === 'mare_alta') breathGain = 20;
+        else if (afogadoCurrentWave === 'tempestade') breathGain = 35;
+
+        setAfogadoScore(prev => prev + earnedPoints);
+        setAfogadoSolvedCount(prevSolved => {
+          const nextSolved = prevSolved + 1;
+          
+          setAfogadoCurrentWave(prevWave => {
+            let nextWave = prevWave;
+            if (nextSolved % 4 === 0) {
+              if (prevWave === 'calmaria') nextWave = 'mare_alta';
+              else if (prevWave === 'mare_alta') nextWave = 'tempestade';
+              else if (prevWave === 'tempestade') nextWave = 'recuperacao';
+              else nextWave = 'calmaria';
+            }
+            
+            const isVersus = activePlayer !== 'Ambos';
+            const difficulty = afogadoWaterLevel > 80 
+              ? 'easy' 
+              : nextWave === 'calmaria' || nextWave === 'recuperacao' 
+              ? 'easy' 
+              : nextWave === 'mare_alta' 
+              ? 'medium' 
+              : 'difficult';
+
+            getAfogadoWordForIndex(todayStr, nextSolved, difficulty, isVersus).then(nextWord => {
+              setTargetWords([nextWord]);
+              setGuesses([]);
+              setCurrentGuess('');
+              setSolvedBoards([false]);
+
+              setAfogadoWordRevealTimer(0);
+              setAfogadoWordAutoRevealCount(0);
+              
+              const initialRevealed = new Set<number>();
+              if (nextWord.length >= 5) {
+                const idx = Math.floor(Math.random() * nextWord.length);
+                initialRevealed.add(idx);
+              }
+              setAfogadoRevealedIndices(initialRevealed);
+            });
+
+            return nextWave;
+          });
+
+          return nextSolved;
+        });
+
+        setAfogadoCurrentStreak(prev => {
+          const next = prev + 1;
+          setAfogadoMaxStreak(max => Math.max(max, next));
+          return next;
+        });
+
+        setAfogadoBreathPoints(prev => {
+          const next = prev + breathGain;
+          if (next >= 100) {
+            setAfogadoBreathCharges(c => Math.min(3, c + 1));
+            return next - 100;
+          }
+          return next;
+        });
+
+        let baseWaterReduction = 18;
+        if (afogadoCurrentWave === 'mare_alta') baseWaterReduction = 28;
+        else if (afogadoCurrentWave === 'tempestade') baseWaterReduction = 40;
+
+        const waterReduction = baseWaterReduction * revealMultiplier;
+        setAfogadoWaterLevel(lvl => Math.max(0, lvl - waterReduction));
+
+        showToast(`✅ Palavra Resolvida! +${earnedPoints} pts`);
+      } else {
+        setAfogadoCurrentStreak(0);
+        showToast("❌ Errou! Combo quebrado.");
+        
+        if (nextGuesses.length > 5) {
+          setGuesses(nextGuesses.slice(-5));
+        }
       }
       return;
     }
@@ -1672,6 +1888,7 @@ export default function App() {
         bomb: vMatch.gabrielBomb || 0,
         crossword: vMatch.gabrielCrossword || 0,
         blitz: vMatch.gabrielBlitz || 0,
+        afogado: vMatch.gabrielAfogado || 0,
         total: vMatch.gabrielTotal
       });
       setAlessandraVersusScores({
@@ -1681,6 +1898,7 @@ export default function App() {
         bomb: vMatch.alessandraBomb || 0,
         crossword: vMatch.alessandraCrossword || 0,
         blitz: vMatch.alessandraBlitz || 0,
+        afogado: vMatch.alessandraAfogado || 0,
         total: vMatch.alessandraTotal
       });
 
@@ -1700,8 +1918,8 @@ export default function App() {
         startRound = 2;
       }
     } else {
-      setGabrielVersusScores({ termo: 0, dueto: 0, quarteto: 0, bomb: 0, crossword: 0, blitz: 0, total: 0 });
-      setAlessandraVersusScores({ termo: 0, dueto: 0, quarteto: 0, bomb: 0, crossword: 0, blitz: 0, total: 0 });
+      setGabrielVersusScores({ termo: 0, dueto: 0, quarteto: 0, bomb: 0, crossword: 0, blitz: 0, afogado: 0, total: 0 });
+      setAlessandraVersusScores({ termo: 0, dueto: 0, quarteto: 0, bomb: 0, crossword: 0, blitz: 0, afogado: 0, total: 0 });
     }
 
     setVersusRound(startRound);
@@ -1981,6 +2199,275 @@ export default function App() {
         setTriggerConfetti(true);
       }
     }
+  };
+
+  // Afogado Mode Triggers
+  const handleStartAfogado = async () => {
+    setGameModeType('afogado');
+    setActiveMode(1); // Standard Termo input sizing
+    setView('playing');
+
+    // Reset scores & stats
+    setAfogadoScore(0);
+    setAfogadoSolvedCount(0);
+    setAfogadoCurrentStreak(0);
+    setAfogadoMaxStreak(0);
+    setAfogadoElapsedTime(0);
+    setAfogadoWaterLevel(0);
+    setAfogadoBreathPoints(0);
+    setAfogadoBreathCharges(0);
+    setAfogadoBreathActive(false);
+    setAfogadoBreathActiveTimeLeft(0);
+    setAfogadoCurrentWave('calmaria');
+    setAfogadoDicasUsed(0);
+    setAfogadoWordAutoRevealCount(0);
+    setAfogadoWordRevealTimer(0);
+
+    const isVersus = activePlayer !== 'Ambos';
+    const firstWord = await getAfogadoWordForIndex(todayStr, 0, 'easy', isVersus);
+    setTargetWords([firstWord]);
+    setGuesses([]);
+    setCurrentGuess('');
+    setSolvedBoards([false]);
+
+    const initialRevealed = new Set<number>();
+    if (firstWord.length >= 5) {
+      const idx = Math.floor(Math.random() * firstWord.length);
+      initialRevealed.add(idx);
+    }
+    setAfogadoRevealedIndices(initialRevealed);
+
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setAfogadoElapsedTime(prevTime => {
+        const nextElapsedTime = prevTime + 1;
+
+        // Breath active countdown
+        setAfogadoBreathActive(active => {
+          if (active) {
+            setAfogadoBreathActiveTimeLeft(timeLeft => {
+              if (timeLeft <= 1) {
+                return 0;
+              }
+              return timeLeft - 1;
+            });
+          }
+          return active;
+        });
+
+        // Check if breath timer just expired
+        setAfogadoBreathActiveTimeLeft(timeLeft => {
+          if (timeLeft === 0) {
+            setAfogadoBreathActive(false);
+          }
+          return timeLeft;
+        });
+
+        // Water level rise (only if breath is NOT active)
+        setAfogadoBreathActive(active => {
+          if (!active) {
+            setAfogadoCurrentWave(wave => {
+              setAfogadoSolvedCount(solvedCount => {
+                setAfogadoWaterLevel(lvl => {
+                  let rate = 1.2; // default calmaria
+                  if (wave === 'mare_alta') rate = 2.0;
+                  else if (wave === 'tempestade') rate = 3.0;
+                  else if (wave === 'recuperacao') rate = 0.8;
+
+                  // Escalation speed scaling
+                  const scale = 1 + solvedCount * 0.04;
+                  const nextLvl = lvl + rate * scale;
+                  
+                  if (nextLvl >= 100) {
+                    clearInterval(timerRef.current);
+                    setTimeout(() => handleEndAfogado(nextElapsedTime, solvedCount), 50);
+                    return 100;
+                  }
+                  return nextLvl;
+                });
+                return solvedCount;
+              });
+              return wave;
+            });
+          }
+          return active;
+        });
+
+        // Word progressive auto-reveal countdown
+        setTargetWords(words => {
+          if (words.length > 0) {
+            const target = words[0];
+            setAfogadoWordRevealTimer(t => {
+              const nextT = t + 1;
+              if (nextT >= 6) {
+                setAfogadoRevealedIndices(revealed => {
+                  const unrevealed: number[] = [];
+                  for (let i = 0; i < target.length; i++) {
+                    if (!revealed.has(i)) {
+                      unrevealed.push(i);
+                    }
+                  }
+                  if (unrevealed.length > 1) {
+                    const idx = unrevealed[Math.floor(Math.random() * unrevealed.length)];
+                    const nextSet = new Set(revealed);
+                    nextSet.add(idx);
+                    setAfogadoWordAutoRevealCount(c => c + 1);
+                    return nextSet;
+                  }
+                  return revealed;
+                });
+                return 0;
+              }
+              return nextT;
+            });
+          }
+          return words;
+        });
+
+        return nextElapsedTime;
+      });
+    }, 1000);
+  };
+
+  const handleEndAfogado = (finalTime: number, finalSolvedCount: number) => {
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    setAfogadoScore(score => {
+      setAfogadoMaxStreak(maxStrk => {
+        setAfogadoDicasUsed(dicas => {
+          const match: AfogadoMatch = {
+            date: todayStr,
+            timeSurvived: finalTime,
+            wordsSolved: finalSolvedCount,
+            maxStreak: maxStrk,
+            dicasUsed: dicas,
+            score: score,
+            playerName: activePlayer === 'Ambos' ? 'Gabriel' : activePlayer
+          };
+
+          saveAfogadoMatch(match);
+          setAfogadoHistoryList(getAfogadoHistory());
+          setAfogadoRecordsList(getAfogadoRecords());
+
+          if (activePlayer !== 'Ambos') {
+            const result: SpecialModeResult = {
+              playerName: activePlayer,
+              date: todayStr,
+              mode: 'afogado',
+              success: finalSolvedCount > 0,
+              score: score,
+              time: finalTime,
+              attempts: dicas,
+              wordsSolved: finalSolvedCount,
+              detail: `Sobreviveu por ${formatTime(finalTime)} (streak max: ${maxStrk})`
+            };
+
+            saveSpecialModeResult(result);
+            setAfogadoResultToday(result);
+            updateVersusScore('afogado', score);
+
+            if (versusOpponentType === 'bot') {
+              const botAfogadoSim = Math.round(6 + Math.random() * 10); // 6 to 16 solved
+              const botMaxStreakSim = Math.round(3 + Math.random() * 4);
+              const botScoreSim = botAfogadoSim * 120 + botMaxStreakSim * 25;
+              const oppName = activePlayer === 'Gabriel' ? 'Alessandra' : 'Gabriel';
+              setTimeout(() => {
+                const vMatch = getVersusMatchForDate(todayStr);
+                if (vMatch) {
+                  const finalizedVersus = { ...vMatch };
+                  if (oppName === 'Gabriel') {
+                    finalizedVersus.gabrielAfogado = botScoreSim;
+                    finalizedVersus.gabrielTotal = (finalizedVersus.gabrielTermo || 0) + (finalizedVersus.gabrielDueto || 0) + (finalizedVersus.gabrielQuarteto || 0) + (finalizedVersus.gabrielBomb || 0) + (finalizedVersus.gabrielCrossword || 0) + (finalizedVersus.gabrielBlitz || 0) + botScoreSim;
+                  } else {
+                    finalizedVersus.alessandraAfogado = botScoreSim;
+                    finalizedVersus.alessandraTotal = (finalizedVersus.alessandraTermo || 0) + (finalizedVersus.alessandraDueto || 0) + (finalizedVersus.alessandraQuarteto || 0) + (finalizedVersus.alessandraBomb || 0) + (finalizedVersus.alessandraCrossword || 0) + (finalizedVersus.alessandraBlitz || 0) + botScoreSim;
+                  }
+                  
+                  finalizedVersus.winner = finalizedVersus.gabrielTotal > finalizedVersus.alessandraTotal
+                    ? 'Gabriel'
+                    : finalizedVersus.alessandraTotal > finalizedVersus.gabrielTotal
+                    ? 'Alessandra'
+                    : 'Empate';
+
+                  saveVersusMatch(finalizedVersus);
+                  setVersusMatchToday(finalizedVersus);
+                  setVersusHistory(getVersusHistory());
+
+                  setOppState(prev => ({
+                    ...prev,
+                    afogadoScore: botScoreSim,
+                    totalScore: oppName === 'Gabriel' ? finalizedVersus.gabrielTotal : finalizedVersus.alessandraTotal
+                  }));
+                }
+              }, 1200);
+            }
+          }
+
+          setView('afogado-end');
+          return dicas;
+        });
+        return maxStrk;
+      });
+      return score;
+    });
+  };
+
+  const handleAfogadoHint = () => {
+    if (gameModeType !== 'afogado' || targetWords.length === 0) return;
+    const target = targetWords[0];
+
+    setAfogadoWaterLevel(prev => {
+      const nextLvl = prev + 15;
+      if (nextLvl >= 100) {
+        clearInterval(timerRef.current);
+        setAfogadoElapsedTime(finalTime => {
+          setAfogadoSolvedCount(finalSolvedCount => {
+            setTimeout(() => handleEndAfogado(finalTime, finalSolvedCount), 50);
+            return finalSolvedCount;
+          });
+          return finalTime;
+        });
+        return 100;
+      }
+      return nextLvl;
+    });
+
+    setAfogadoRevealedIndices(revealed => {
+      const unrevealed: number[] = [];
+      for (let i = 0; i < target.length; i++) {
+        if (!revealed.has(i)) {
+          unrevealed.push(i);
+        }
+      }
+      if (unrevealed.length > 1) {
+        const idx = unrevealed[Math.floor(Math.random() * unrevealed.length)];
+        const nextSet = new Set(revealed);
+        nextSet.add(idx);
+        setAfogadoWordAutoRevealCount(c => c + 1);
+        setAfogadoDicasUsed(d => d + 1);
+        return nextSet;
+      } else {
+        showToast("Só resta uma letra, tente adivinhar!");
+        return revealed;
+      }
+    });
+  };
+
+  const handleAfogadoBreath = () => {
+    if (gameModeType !== 'afogado') return;
+    if (afogadoBreathCharges <= 0) {
+      showToast("Sem cargas de fôlego disponíveis!");
+      return;
+    }
+    if (afogadoBreathActive) {
+      showToast("Fôlego já está ativo!");
+      return;
+    }
+
+    setAfogadoBreathCharges(c => c - 1);
+    setAfogadoBreathActive(true);
+    setAfogadoBreathActiveTimeLeft(6);
+    showToast("💨 Fôlego Ativo! Água congelada por 6 segundos!");
   };
 
   // Blitz mode triggers
@@ -2376,6 +2863,10 @@ export default function App() {
 
   return (
     <>
+      {gameModeType === 'afogado' && afogadoWaterLevel > 80 && (
+        <div className="afogado-panic-overlay" />
+      )}
+
       <Confetti active={triggerConfetti} />
 
       {toastMessage && (
@@ -2750,6 +3241,11 @@ export default function App() {
               <span>{versusMatchToday?.gabrielBlitz || 0} pts</span>
               <span>{versusMatchToday?.alessandraBlitz || 0} pts</span>
             </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', padding: '0.5rem 0', textAlign: 'left' }}>
+              <span>Afogado</span>
+              <span>{versusMatchToday?.gabrielAfogado || 0} pts</span>
+              <span>{versusMatchToday?.alessandraAfogado || 0} pts</span>
+            </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', padding: '0.75rem 0', borderTop: '2px solid var(--glass-border)', fontWeight: 'bold', fontSize: '1.15rem', textAlign: 'left', marginTop: '0.5rem' }}>
               <span>Total</span>
@@ -2795,6 +3291,78 @@ export default function App() {
               <span style={{ fontWeight: 'bold' }}>{blitzAttemptsCount}</span>
             </div>
           </div>
+
+          <button className="modal-close-btn" onClick={handleBackToDashboard}>
+            Voltar ao Dashboard
+          </button>
+        </div>
+      ) : view === 'afogado-end' ? (
+        /* Afogado Game Concluding results screen */
+        <div className="lobby-container" style={{ maxWidth: '550px' }}>
+          <div className="winner-crown" style={{ fontSize: '4.5rem' }}>🌊</div>
+          <h2 className="winner-headline" style={{ fontSize: '2.3rem', marginBottom: '1rem', background: 'linear-gradient(to right, #0284c7, #7c3aed)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            FIM DA PARTIDA!
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>Você foi engolido pela água!</p>
+
+          <div style={{ background: 'rgba(0,0,0,0.2)', width: '100%', borderRadius: '16px', padding: '1.5rem', marginBottom: '2rem', border: '1px solid var(--glass-border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <span>Tempo Sobrevivido:</span>
+              <span style={{ fontWeight: 'bold', color: 'var(--accent-cyan)' }}>{formatTime(afogadoElapsedTime)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <span>Palavras Resolvidas:</span>
+              <span style={{ fontWeight: 'bold', color: 'var(--accent-cyan)' }}>{afogadoSolvedCount}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <span>Sequência Máxima (Streak):</span>
+              <span style={{ fontWeight: 'bold', color: 'var(--color-present)' }}>{afogadoMaxStreak} 🔥</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <span>Dicas Utilizadas:</span>
+              <span style={{ fontWeight: 'bold' }}>{afogadoDicasUsed}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', marginTop: '0.5rem' }}>
+              <span>Pontuação Final:</span>
+              <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '1.3rem' }}>{afogadoScore} pts</span>
+            </div>
+          </div>
+
+          {/* Record summary */}
+          <div style={{ background: 'rgba(255, 255, 255, 0.03)', width: '100%', borderRadius: '12px', padding: '1rem', marginBottom: '2rem', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+            <h3 style={{ fontSize: '0.9rem', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>Recordes Pessoais:</h3>
+            {afogadoRecordsList.filter(r => r.playerName === (activePlayer === 'Ambos' ? 'Gabriel' : activePlayer)).map(rec => (
+              <div key={rec.playerName} style={{ fontSize: '0.85rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '0.25rem 0' }}>
+                  <span>Max Palavras:</span>
+                  <strong>{rec.maxWordsSolved}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '0.25rem 0' }}>
+                  <span>Max Pontos:</span>
+                  <strong>{rec.maxScore} pts</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '0.25rem 0' }}>
+                  <span>Max Tempo:</span>
+                  <strong>{formatTime(rec.maxTimeSurvived)}</strong>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* History summary */}
+          {afogadoHistoryList.length > 0 && (
+            <div style={{ background: 'rgba(255, 255, 255, 0.03)', width: '100%', borderRadius: '12px', padding: '1rem', marginBottom: '2rem', border: '1px solid rgba(255, 255, 255, 0.05)', textAlign: 'left' }}>
+              <h3 style={{ fontSize: '0.9rem', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>Histórico Recente:</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                {afogadoHistoryList.slice(0, 3).map((h, index) => (
+                  <div key={index} style={{ fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '0.2rem' }}>
+                    <span>{h.date}</span>
+                    <span>{h.wordsSolved} pal. / {h.score} pts ({formatTime(h.timeSurvived)})</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <button className="modal-close-btn" onClick={handleBackToDashboard}>
             Voltar ao Dashboard
@@ -3075,6 +3643,72 @@ export default function App() {
 
               <button className="challenge-btn" disabled={!!crosswordResultToday} onClick={handleStartCrossword}>
                 {crosswordResultToday ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Grid3X3 size={16} /> Abrir Grade</>}
+              </button>
+            </div>
+
+            <div className="challenge-card mode-afogado" style={{
+              background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.05), rgba(168, 85, 247, 0.05))',
+              border: '1px solid rgba(6, 182, 212, 0.15)'
+            }}>
+              <div className="challenge-header">
+                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                  <div className="challenge-badge" style={{ color: '#bae6fd', background: 'rgba(14, 165, 233, 0.15)' }}>
+                    {activePlayer === 'Ambos' ? 'Afogado' : '⚔️ Afogado Versus'}
+                  </div>
+                  {activePlayer === 'Ambos' && (
+                    <span className="versus-indicator-badge" title="Disponível no Modo Versus">⚔️ Versus</span>
+                  )}
+                </div>
+                <div className="challenge-status-indicator">
+                  {activePlayer === 'Ambos'
+                    ? (afogadoResultToday ? '✅' : '❌')
+                    : (afogadoResultToday && oppState.afogadoScore ? '✅' : afogadoResultToday || oppState.afogadoScore ? '⏳' : '❌')}
+                </div>
+              </div>
+              <h3 className="challenge-title">Modo Afogado</h3>
+              <p className="challenge-desc">Sobreviva ao recipiente de água que sobe sem parar! Letras se revelam com o tempo e acertos diminuem a água. Use fôlego para pausar o tempo.</p>
+              
+              {activePlayer === 'Ambos' ? (
+                afogadoResultToday && (
+                  <div className="challenge-stats">
+                    <div className="challenge-stat-row">
+                      <span className="challenge-stat-label">Sobreviveu:</span>
+                      <span className="challenge-stat-value">{formatTime(afogadoResultToday.time)}</span>
+                    </div>
+                    <div className="challenge-stat-row">
+                      <span className="challenge-stat-label">Palavras:</span>
+                      <span className="challenge-stat-value">{afogadoResultToday.wordsSolved}</span>
+                    </div>
+                    <div className="challenge-stat-row">
+                      <span className="challenge-stat-label">Pontuação:</span>
+                      <span className="challenge-stat-value" style={{ color: 'var(--accent-cyan)' }}>{afogadoResultToday.score} pts</span>
+                    </div>
+                  </div>
+                )
+              ) : (
+                <div className="challenge-stats">
+                  <div className="challenge-stat-row">
+                    <span className="challenge-stat-label">Sua pontuação:</span>
+                    <span className="challenge-stat-value">{afogadoResultToday ? `${afogadoResultToday.score} pts` : 'Não jogou ❌'}</span>
+                  </div>
+                  <div className="challenge-stat-row">
+                    <span className="challenge-stat-label">Oponente ({opponentName}):</span>
+                    <span className="challenge-stat-value">{(oppState.afogadoScore !== undefined && oppState.afogadoScore > 0) ? `${oppState.afogadoScore} pts` : 'Não jogou ❌'}</span>
+                  </div>
+                  {afogadoResultToday && oppState.afogadoScore !== undefined && oppState.afogadoScore > 0 && (
+                    <div style={{ marginTop: '0.5rem', fontWeight: 'bold', fontSize: '0.8rem', color: 'var(--accent-purple)' }}>
+                      {afogadoResultToday.score > oppState.afogadoScore
+                        ? 'Você venceu este duelo! 🏆'
+                        : oppState.afogadoScore > afogadoResultToday.score
+                        ? `${opponentName} venceu este duelo! 🏆`
+                        : 'Empate neste duelo! 🤝'}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button className="challenge-btn" style={{ background: 'linear-gradient(135deg, #0284c7, #7c3aed)', color: 'white' }} disabled={!!afogadoResultToday} onClick={handleStartAfogado}>
+                {afogadoResultToday ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Activity size={16} /> Jogar Afogado</>}
               </button>
             </div>
           </div>
@@ -3848,33 +4482,164 @@ export default function App() {
                   </div>
                 )}
 
-                <GameBoard
-                  mode={activeMode}
-                  words={targetWords}
-                  guesses={guesses}
-                  currentGuess={currentGuess}
-                  maxAttempts={maxAttempts}
-                  shakeRowIndex={shakeRowIndex}
-                  onCellClick={(idx) => {
-                    setFocusedCharIndex(idx);
-                    if (boardInputRef.current) {
-                      boardInputRef.current.focus();
-                    }
-                  }}
-                  focusedCellIndex={focusedCharIndex}
-                />
+                {gameModeType === 'afogado' ? (
+                  <div className="afogado-layout">
+                    {/* Water Flask Cylinder */}
+                    <div className="afogado-flask-container">
+                      <div className="afogado-flask-scale">
+                        <span>100%</span>
+                        <span>80%</span>
+                        <span>60%</span>
+                        <span>40%</span>
+                        <span>20%</span>
+                        <span>0%</span>
+                      </div>
+                      <div 
+                        className={`afogado-water-fill ${afogadoWaterLevel > 80 ? 'panic' : ''} ${afogadoBreathActive ? 'frozen' : ''}`}
+                        style={{ height: `${afogadoWaterLevel}%` }}
+                      />
+                      <div className={`afogado-water-percent ${afogadoWaterLevel > 80 ? 'panic' : ''}`}>
+                        {Math.round(afogadoWaterLevel)}%
+                        <span>{afogadoBreathActive ? 'CONGELADO' : 'ÁGUA'}</span>
+                      </div>
+                    </div>
 
-                <Keyboard
-                  onChar={handleCharInput}
-                  onDelete={handleDeleteInput}
-                  onEnter={handleEnterInput}
-                  onBeginInput={() => {
-                    if (boardInputRef.current) {
-                      boardInputRef.current.focus();
-                    }
-                  }}
-                  letterStatuses={aggregatedLetterStatuses()}
-                />
+                    {/* Middle board & keyboard */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <GameBoard
+                        mode={activeMode}
+                        words={targetWords}
+                        guesses={guesses}
+                        currentGuess={currentGuess}
+                        maxAttempts={maxAttempts}
+                        shakeRowIndex={shakeRowIndex}
+                        onCellClick={(idx) => {
+                          setFocusedCharIndex(idx);
+                          if (boardInputRef.current) {
+                            boardInputRef.current.focus();
+                          }
+                        }}
+                        focusedCellIndex={focusedCharIndex}
+                        revealedIndices={afogadoRevealedIndices}
+                      />
+                      <div style={{ marginTop: '1.5rem', width: '100%' }}>
+                        <Keyboard
+                          onChar={handleCharInput}
+                          onDelete={handleDeleteInput}
+                          onEnter={handleEnterInput}
+                          onBeginInput={() => {
+                            if (boardInputRef.current) {
+                              boardInputRef.current.focus();
+                            }
+                          }}
+                          letterStatuses={aggregatedLetterStatuses()}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Right side controls panel */}
+                    <div className="afogado-side-controls">
+                      <div className="afogado-stat-card">
+                        <span className="afogado-stat-label">Onda Atual</span>
+                        <div className="afogado-stat-val">
+                          <span className={`afogado-wave-tag ${afogadoCurrentWave}`}>
+                            {afogadoCurrentWave === 'calmaria'
+                              ? '🌊 Calmaria'
+                              : afogadoCurrentWave === 'mare_alta'
+                              ? '⚡ Maré Alta'
+                              : afogadoCurrentWave === 'tempestade'
+                              ? '🌪️ Tempestade'
+                              : '💙 Recuperação'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="afogado-stat-card">
+                        <span className="afogado-stat-label">Revelação Auto</span>
+                        <span className="afogado-stat-val" style={{ fontSize: '1.25rem', color: 'var(--accent-cyan)' }}>
+                          ⏳ {6 - afogadoWordRevealTimer}s
+                        </span>
+                      </div>
+
+                      <div className="afogado-stat-card">
+                        <span className="afogado-stat-label">Pontuação</span>
+                        <span className="afogado-stat-val" style={{ color: 'var(--accent-cyan)' }}>
+                          {afogadoScore} <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>pts</span>
+                        </span>
+                      </div>
+
+                      <div className="afogado-stat-card">
+                        <span className="afogado-stat-label">Resolvidas</span>
+                        <span className="afogado-stat-val">
+                          {afogadoSolvedCount}
+                        </span>
+                      </div>
+
+                      <div className="afogado-stat-card">
+                        <span className="afogado-stat-label">Combo</span>
+                        <span className="afogado-stat-val" style={{ color: 'var(--color-present)' }}>
+                          {afogadoCurrentStreak > 0 ? `🔥 x${afogadoCurrentStreak}` : 'x0'}
+                        </span>
+                      </div>
+
+                      <div className="afogado-stat-card">
+                        <span className="afogado-stat-label">Fôlego (Próximo: {afogadoBreathPoints}%)</span>
+                        <span className="afogado-stat-val" style={{ color: '#06b6d4' }}>
+                          {Array.from({ length: afogadoBreathCharges }).map((_) => '💨').join(' ') || 'Nenhum'}
+                        </span>
+                        <div className="afogado-breath-progress-container">
+                          <div className="afogado-breath-progress-bar" style={{ width: `${afogadoBreathPoints}%` }} />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
+                        <button 
+                          className="afogado-action-btn hint-btn" 
+                          onClick={handleAfogadoHint}
+                        >
+                          <HelpCircle size={16} /> Pedir Dica (+15% 💧)
+                        </button>
+                        <button 
+                          className={`afogado-action-btn breath-btn ${afogadoBreathActive ? 'active' : ''}`}
+                          onClick={handleAfogadoBreath}
+                          disabled={afogadoBreathCharges <= 0 || afogadoBreathActive}
+                        >
+                          {afogadoBreathActive ? `💨 Pausado (${afogadoBreathActiveTimeLeft}s)` : `💨 Ativar Fôlego (${afogadoBreathCharges})`}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <GameBoard
+                      mode={activeMode}
+                      words={targetWords}
+                      guesses={guesses}
+                      currentGuess={currentGuess}
+                      maxAttempts={maxAttempts}
+                      shakeRowIndex={shakeRowIndex}
+                      onCellClick={(idx) => {
+                        setFocusedCharIndex(idx);
+                        if (boardInputRef.current) {
+                          boardInputRef.current.focus();
+                        }
+                      }}
+                      focusedCellIndex={focusedCharIndex}
+                    />
+
+                    <Keyboard
+                      onChar={handleCharInput}
+                      onDelete={handleDeleteInput}
+                      onEnter={handleEnterInput}
+                      onBeginInput={() => {
+                        if (boardInputRef.current) {
+                          boardInputRef.current.focus();
+                        }
+                      }}
+                      letterStatuses={aggregatedLetterStatuses()}
+                    />
+                  </>
+                )}
               </div>
 
               {/* Versus Opponent Live Tracker Sidepanel */}
