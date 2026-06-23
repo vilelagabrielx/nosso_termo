@@ -1,0 +1,42 @@
+Resumo do que falta implementar:
+
+1. Novos modos solicitados:
+   - Modo Bomba
+     * Lógica de bomba com barra de carga de 0% a 100%
+     * Cada tentativa deve afetar a carga:
+       - letra correta na posição certa reduz a carga
+       - letra presente em outra posição aumenta a carga
+       - letra ausente aumenta mais a carga
+     * Condições de derrota/vitória
+     * Feedback visual / UI para bomba
+     * Limitação de 1x por dia para o modo
+
+   - Modo Palavras Cruzadas (com IA)
+     * Grade de palavras cruzadas
+     * Pistas geradas por IA para cada palavra
+     * Tipos de pistas: direta, contextual, enigmática
+     * Lógica de preenchimento da grade e validação de respostas
+     * UI dedicada para cruzadas
+     * Limitação de 1x por dia para o modo
+
+2. Ajustes necessários no app atual:
+   - Integrar novos modos ao dashboard principal
+   - Adicionar botões/menu para iniciar Bomba e Cruzadas
+   - Atualizar estados em App.tsx para suportar novo tipo de jogo
+   - Criar novos componentes ou estender GameBoard/Keyboard conforme necessário
+   - Atualizar dados/stores em mockDb.ts se precisar armazenar resultados ou pistas
+   - Incluir estilos CSS para os novos modos
+
+3. O que já foi identificado e revisado:
+   - App.tsx já implementa os modos atuais: Termo, Dueto, Quarteto, Blitz e Versus
+   - A lógica de jogo usa palavras e histórico em localStorage via src/services/mockDb.ts
+   - O GameBoard atual funciona como um Wordle tradicional para os modos existentes
+   - Não há suporte atual para os modos Bomba ou Cruzadas com IA
+   - O teclado e o estilo das células já estão prontos para suporte básico de adivinhação
+
+4. Passos seguintes planejados:
+   - Implementar o gerenciador de modos no dashboard e no estado central
+   - Criar o fluxo de jogo do Modo Bomba e o contador de carga
+   - Criar o fluxo de jogo do Modo Cruzadas com geração de clues
+   - Garantir que os modos novos apareçam apenas uma vez por dia
+   - Testar cada modo na UI e garantir que não quebre os modos existentes
