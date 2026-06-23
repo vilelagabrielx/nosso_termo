@@ -240,7 +240,7 @@ export default function App() {
         }
       })
       .on('broadcast', { event: 'accept' }, (payload) => {
-        const { from, to } = payload.payload;
+        const { to } = payload.payload;
         if (to === activePlayer) {
           // Opponent accepted invite!
           setVersusOpponentType('real');
@@ -1998,8 +1998,8 @@ export default function App() {
             <div className="lobby-user-row">
               <span>{opponentName === 'Gabriel' ? '🧔 Gabriel' : '👩 Alessandra'}</span>
               <span className={`lobby-user-status ${versusOpponentType === 'real'
-                  ? (onlineUsers.includes(opponentName) ? (waitingForOpponent ? 'waiting' : 'ready') : 'waiting')
-                  : (lobbyStep === 'connecting' ? 'waiting' : 'ready')
+                ? (onlineUsers.includes(opponentName) ? (waitingForOpponent ? 'waiting' : 'ready') : 'waiting')
+                : (lobbyStep === 'connecting' ? 'waiting' : 'ready')
                 }`}>
                 {versusOpponentType === 'real'
                   ? (onlineUsers.includes(opponentName)
