@@ -74,16 +74,16 @@ export interface PlayerStats {
 const WORD_TABLE_CANDIDATES = ['palavras', 'words'];
 
 function mapDbWord(row: any) {
-  const rawWord = row.palavra || row.word || row.termo || row.texto || '';
+  const rawWord = row.palavra || row.Word || row.word || row.termo || row.texto || '';
   const word = normalizeWord(rawWord);
   return {
-    id: row.id || word,
+    id: row.Id || row.id || word,
     word,
-    length: row.tamanho || row.length || word.length,
-    usedCount: row.used_count || row.usedCount || row.usos || 0,
-    lastUsedAt: row.last_used_at || row.lastUsedAt || row.usada_em || null,
-    createdAt: row.created_at || row.createdAt || new Date().toISOString(),
-    source: row.source || row.fonte || 'Supabase'
+    length: row.Length || row.tamanho || row.length || word.length,
+    usedCount: row.UsedCount || row.used_count || row.usedCount || row.usos || 0,
+    lastUsedAt: row.LastUsedAt || row.last_used_at || row.lastUsedAt || row.usada_em || null,
+    createdAt: row.CreatedAt || row.created_at || row.createdAt || new Date().toISOString(),
+    source: row.Source || row.source || row.fonte || 'Supabase'
   };
 }
 
