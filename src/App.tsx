@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import type { KeyboardEvent } from 'react';
+import type { ChangeEvent, KeyboardEvent } from 'react';
 import {
   initLocalStorage,
   getActivePlayer,
@@ -168,6 +168,7 @@ export default function App() {
   const [guesses, setGuesses] = useState<string[]>([]);
   const [currentGuess, setCurrentGuess] = useState<string>('');
   const [solvedBoards, setSolvedBoards] = useState<boolean[]>([]);
+  const boardInputRef = useRef<HTMLInputElement | null>(null);
 
   // Timer state
   const [elapsedTime, setElapsedTime] = useState<number>(0);
@@ -187,6 +188,10 @@ export default function App() {
 
   const todayStr = getTodayDateString();
   const opponentName = activePlayer === 'Gabriel' ? 'Alessandra' : 'Gabriel';
+  const myVersusScores = activePlayer === 'Gabriel' ? gabrielVersusScores : alessandraVersusScores;
+  const opponentVersusScores = activePlayer === 'Gabriel' ? alessandraVersusScores : gabrielVersusScores;
+  const currentRoundName = activeMode === 1 ? 'Termo' : activeMode === 2 ? 'Dueto' : 'Quarteto';
+  const currentRoundScore = activeMode === 1 ? myVersusScores.termo : activeMode === 2 ? myVersusScores.dueto : myVersusScores.quarteto;
 
   // Initialize DB and load initial data
   useEffect(() => {
@@ -967,8 +972,12 @@ export default function App() {
   useEffect(() => {
     if (view === 'playing') {
       const timer = setTimeout(() => {
-        window.focus();
-        document.body.focus();
+        if (boardInputRef.current) {
+          boardInputRef.current.focus();
+        } else {
+          window.focus();
+          document.body.focus();
+        }
       }, 50);
       return () => clearTimeout(timer);
     }
@@ -977,7 +986,8 @@ export default function App() {
   // Listen to physical keyboard events globally when playing
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      // Ignore key events when user is typing in form inputs/textarea
+      // Ignore key events when user is typing in form inputs/textarea,
+      // but allow our hidden board input to continue working.
       const target = event.target as HTMLElement;
       if (
         target &&
@@ -985,7 +995,9 @@ export default function App() {
           target.tagName === 'TEXTAREA' ||
           target.isContentEditable)
       ) {
-        return;
+        if (target !== boardInputRef.current) {
+          return;
+        }
       }
 
       console.log('Teclado físico detectado:', event.key, 'view:', viewRef.current, 'mode:', gameModeTypeRef.current);
@@ -1042,18 +1054,29 @@ export default function App() {
   };
 
   const calculateVersusScore = (mode: 1 | 2 | 4, attempts: number, time: number, success: boolean, solvedCount: number) => {
+    // Improved Versus scoring:
+    // - Fast, accurate solves earn more points
+    // - Higher modes are worth more
+    // - Failed rounds still give partial points based on progress
+    const maxScore = mode === 1 ? 120 : mode === 2 ? 260 : 520;
+    const minScore = mode === 1 ? 20 : mode === 2 ? 40 : 80;
+    const attemptPenalty = (attempts - 1) * (mode === 1 ? 10 : mode === 2 ? 14 : 18);
+    const timePenalty = Math.min(
+      mode === 1 ? 40 : mode === 2 ? 50 : 70,
+      Math.round(time / (mode === 1 ? 6 : mode === 2 ? 5 : 4))
+    );
+
     if (!success) {
-      if (mode === 2) return solvedCount * 40;
-      if (mode === 4) return solvedCount * 45;
-      return 0;
+      const failBase = mode === 1 ? 18 : mode === 2 ? 40 : 80;
+      const perWord = mode === 1 ? 24 : mode === 2 ? 42 : 60;
+      return Math.min(
+        mode === 1 ? 50 : mode === 2 ? 110 : 220,
+        failBase + perWord * solvedCount
+      );
     }
-    if (mode === 1) {
-      return Math.max(10, Math.round(100 - (attempts - 1) * 8 - Math.min(10, time / 15)));
-    }
-    if (mode === 2) {
-      return Math.max(20, Math.round(200 - (attempts - 1) * 12 - Math.min(20, time / 15)));
-    }
-    return Math.max(40, Math.round(400 - (attempts - 1) * 20 - Math.min(40, time / 15)));
+
+    const rawScore = Math.round(maxScore - attemptPenalty - timePenalty);
+    return Math.max(minScore, rawScore);
   };
 
   // Auto-resolve opponent simulation in case player finishes early
@@ -3021,6 +3044,52 @@ export default function App() {
                     ⚠️ Oponente desconectado! Vitória por W.O. em {formatTime(woRemainingTime)}
                   </div>
                 )}
+                <input
+                  ref={boardInputRef}
+                  type="text"
+                  inputMode="text"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck="false"
+                  value={currentGuess}
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                    const nextValue = event.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, getActiveGuessLen());
+                    setCurrentGuess(nextValue);
+                  }}
+                  aria-label="Entrada de letras do jogo"
+                  className="hidden-native-input"
+                />
+
+                {gameModeType === 'versus' && (
+                  <div className="versus-live-score">
+                    <div className="versus-live-title">Seu Placar</div>
+                    <div className="versus-live-row">
+                      <div>
+                        <div className="versus-live-label">Jogador</div>
+                        <div className="versus-live-value">{activePlayer}</div>
+                      </div>
+                      <div>
+                        <div className="versus-live-label">Total</div>
+                        <div className="versus-live-value">{myVersusScores.total} pts</div>
+                      </div>
+                      <div>
+                        <div className="versus-live-label">Rodada</div>
+                        <div className="versus-live-value">{currentRoundName}</div>
+                      </div>
+                    </div>
+                    <div className="versus-live-row">
+                      <div>
+                        <div className="versus-live-label">Esta rodada</div>
+                        <div className="versus-live-value">{currentRoundScore || 0} pts</div>
+                      </div>
+                      <div>
+                        <div className="versus-live-label">Oponente</div>
+                        <div className="versus-live-value">{opponentName}: {opponentVersusScores.total} pts</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <GameBoard
                   mode={activeMode}
                   words={targetWords}
@@ -3034,6 +3103,11 @@ export default function App() {
                   onChar={handleCharInput}
                   onDelete={handleDeleteInput}
                   onEnter={handleEnterInput}
+                  onBeginInput={() => {
+                    if (boardInputRef.current) {
+                      boardInputRef.current.focus();
+                    }
+                  }}
                   letterStatuses={aggregatedLetterStatuses()}
                 />
               </div>

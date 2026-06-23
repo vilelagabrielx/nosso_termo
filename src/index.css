@@ -840,6 +840,50 @@ header {
   }
 }
 
+.hidden-native-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-9999px);
+}
+
+.versus-live-score {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.versus-live-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent-purple);
+}
+
+.versus-live-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.versus-live-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.versus-live-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
 .keyboard-key {
   font-family: var(--font-sans);
   background: #334155;

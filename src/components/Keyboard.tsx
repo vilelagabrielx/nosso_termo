@@ -4,6 +4,7 @@ interface KeyboardProps {
   onChar: (value: string) => void;
   onDelete: () => void;
   onEnter: () => void;
+  onBeginInput?: () => void;
   letterStatuses: Record<string, 'correct' | 'present' | 'absent'>;
 }
 
@@ -11,6 +12,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
   onChar,
   onDelete,
   onEnter,
+  onBeginInput,
   letterStatuses,
 }) => {
   const rows = [
@@ -39,6 +41,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
             <button
               key={key}
               className={getKeyClass(key)}
+              onPointerDown={onBeginInput}
               onClick={() => {
                 if (key === 'ENTER') {
                   onEnter();
