@@ -1060,64 +1060,124 @@ export async function getBombWordForDate(dateStr: string): Promise<string> {
   return word;
 }
 
-function getCrosswordClue(answer: string, clueType: CrosswordClueType): string {
-  const clues: Record<string, Record<CrosswordClueType, string>> = {
-    PORTA: {
-      direta: 'Abertura usada para entrar ou sair de um lugar.',
-      contextual: 'Em casa, costuma separar um cômodo do outro.',
-      enigmatica: 'Gira no eixo e decide quem fica dentro ou fora.'
-    },
-    ROSA: {
-      direta: 'Flor conhecida por pétalas delicadas e espinhos.',
-      contextual: 'Pode aparecer em buquês românticos.',
-      enigmatica: 'Beleza perfumada que se defende em silêncio.'
-    },
-    SOL: {
-      direta: 'Estrela que ilumina o dia.',
-      contextual: 'Quando aparece forte, pede sombra e protetor.',
-      enigmatica: 'Relógio dourado que acorda as manhãs.'
-    },
-    LIVRO: {
-      direta: 'Objeto com páginas para leitura.',
-      contextual: 'Pode ficar na cabeceira esperando o próximo capítulo.',
-      enigmatica: 'Um mundo inteiro preso entre duas capas.'
-    }
-  };
-
-  return clues[answer]?.[clueType] || `Pista de IA: palavra de ${answer.length} letras ligada ao cotidiano.`;
-}
-
-export function getCrosswordForDate(dateStr: string): CrosswordChallenge {
-  initLocalStorage();
-  const key = 'termo_crossword_challenges';
-  const challenges = JSON.parse(localStorage.getItem(key) || '{}');
-  if (challenges[dateStr]) {
-    return challenges[dateStr];
+const CROSSWORD_TEMPLATES: Record<string, CrosswordChallenge> = {
+  facil_2: {
+    date: '',
+    size: 6,
+    entries: [
+      { id: '1A', answer: 'CASA', row: 1, col: 1, direction: 'across', clue: 'Local onde moramos e nos abrigamos.', clueType: 'direta' },
+      { id: '2D', answer: 'AMOR', row: 1, col: 2, direction: 'down', clue: 'Sentimento profundo de afeto e carinho.', clueType: 'direta' },
+      { id: '3A', answer: 'BOLA', row: 3, col: 1, direction: 'across', clue: 'Objeto esférico usado para praticar esportes.', clueType: 'direta' },
+      { id: '4A', answer: 'REI', row: 4, col: 2, direction: 'across', clue: 'Monarca que lidera um reino.', clueType: 'direta' }
+    ]
+  },
+  facil_5: {
+    date: '',
+    size: 9,
+    entries: [
+      { id: '1A', answer: 'GATO', row: 1, col: 1, direction: 'across', clue: 'Pequeno felino doméstico que mia.', clueType: 'direta' },
+      { id: '2D', answer: 'TERRA', row: 1, col: 3, direction: 'down', clue: 'O planeta habitado por seres humanos.', clueType: 'direta' },
+      { id: '3A', answer: 'RATO', row: 3, col: 3, direction: 'across', clue: 'Pequeno roedor que costuma roer coisas.', clueType: 'direta' },
+      { id: '4D', answer: 'AMIGO', row: 3, col: 6, direction: 'down', clue: 'Pessoa com quem se tem afeição companheira.', clueType: 'direta' },
+      { id: '5A', answer: 'MAU', row: 4, col: 6, direction: 'across', clue: 'Aquele que pratica maldades.', clueType: 'direta' }
+    ]
+  },
+  facil_10: {
+    date: '',
+    size: 11,
+    entries: [
+      { id: '1A', answer: 'PORTA', row: 1, col: 1, direction: 'across', clue: 'Abertura para entrar ou sair de recintos.', clueType: 'direta' },
+      { id: '2D', answer: 'ROSA', row: 1, col: 3, direction: 'down', clue: 'Flor com perfume marcante e espinhos.', clueType: 'direta' },
+      { id: '3A', answer: 'SOL', row: 3, col: 3, direction: 'across', clue: 'Estrela gigante central do sistema solar.', clueType: 'direta' },
+      { id: '4D', answer: 'LIVRO', row: 3, col: 5, direction: 'down', clue: 'Objeto com páginas para leitura.', clueType: 'direta' },
+      { id: '5A', answer: 'RUA', row: 6, col: 5, direction: 'across', clue: 'Via pavimentada pública na cidade.', clueType: 'direta' },
+      { id: '6D', answer: 'AZUL', row: 6, col: 7, direction: 'down', clue: 'Cor do céu em dias ensolarados.', clueType: 'direta' },
+      { id: '7A', answer: 'LUA', row: 9, col: 7, direction: 'across', clue: 'Satélite natural da Terra que brilha à noite.', clueType: 'direta' }
+    ]
+  },
+  medio_2: {
+    date: '',
+    size: 6,
+    entries: [
+      { id: '1A', answer: 'CASA', row: 1, col: 1, direction: 'across', clue: 'Tem teto, paredes e abriga uma família.', clueType: 'contextual' },
+      { id: '2D', answer: 'AMOR', row: 1, col: 2, direction: 'down', clue: 'O sentimento que uniu Romeu e Julieta.', clueType: 'contextual' },
+      { id: '3A', answer: 'BOLA', row: 3, col: 1, direction: 'across', clue: 'Rola no gramado e faz a torcida vibrar.', clueType: 'contextual' },
+      { id: '4A', answer: 'REI', row: 4, col: 2, direction: 'across', clue: 'Usa coroa, senta no trono e vive no castelo.', clueType: 'contextual' }
+    ]
+  },
+  medio_5: {
+    date: '',
+    size: 9,
+    entries: [
+      { id: '1A', answer: 'GATO', row: 1, col: 1, direction: 'across', clue: 'Gosta de deitar no sol e persegue ratos.', clueType: 'contextual' },
+      { id: '2D', answer: 'TERRA', row: 1, col: 3, direction: 'down', clue: 'O planeta azul onde nós todos moramos.', clueType: 'contextual' },
+      { id: '3A', answer: 'RATO', row: 3, col: 3, direction: 'across', clue: 'Roedor cinzento que adora comer queijo.', clueType: 'contextual' },
+      { id: '4D', answer: 'AMIGO', row: 3, col: 6, direction: 'down', clue: 'Aquele que é como um irmão de outra mãe.', clueType: 'contextual' },
+      { id: '5A', answer: 'MAU', row: 4, col: 6, direction: 'across', clue: 'O antônimo de uma pessoa bondosa.', clueType: 'contextual' }
+    ]
+  },
+  medio_10: {
+    date: '',
+    size: 11,
+    entries: [
+      { id: '1A', answer: 'PORTA', row: 1, col: 1, direction: 'across', clue: 'Fica na entrada esperando baterem nela.', clueType: 'contextual' },
+      { id: '2D', answer: 'ROSA', row: 1, col: 3, direction: 'down', clue: 'Bela flor vermelha muito associada ao romance.', clueType: 'contextual' },
+      { id: '3A', answer: 'SOL', row: 3, col: 3, direction: 'across', clue: 'Sua presença dita o ritmo dos dias de verão.', clueType: 'contextual' },
+      { id: '4D', answer: 'LIVRO', row: 3, col: 5, direction: 'down', clue: 'Fica na cabeceira esperando sua leitura noturna.', clueType: 'contextual' },
+      { id: '5A', answer: 'RUA', row: 6, col: 5, direction: 'across', clue: 'O endereço onde as crianças jogavam bola.', clueType: 'contextual' },
+      { id: '6D', answer: 'AZUL', row: 6, col: 7, direction: 'down', clue: 'A cor da camisa da seleção e do oceano profundo.', clueType: 'contextual' },
+      { id: '7A', answer: 'LUA', row: 9, col: 7, direction: 'across', clue: 'Muda de fase toda semana e guia os namorados.', clueType: 'contextual' }
+    ]
+  },
+  dificil_2: {
+    date: '',
+    size: 6,
+    entries: [
+      { id: '1A', answer: 'CASA', row: 1, col: 1, direction: 'across', clue: 'Quatro paredes erguidas para conter as dores do mundo.', clueType: 'enigmatica' },
+      { id: '2D', answer: 'AMOR', row: 1, col: 2, direction: 'down', clue: 'Fogo invisível que queima o peito sem deixar marcas.', clueType: 'enigmatica' },
+      { id: '3A', answer: 'BOLA', row: 3, col: 1, direction: 'across', clue: 'Orbe que dita o choro e o riso coletivo aos domingos.', clueType: 'enigmatica' },
+      { id: '4A', answer: 'REI', row: 4, col: 2, direction: 'across', clue: 'Tira a paz do próprio crânio em troca de uma coroa.', clueType: 'enigmatica' }
+    ]
+  },
+  dificil_5: {
+    date: '',
+    size: 9,
+    entries: [
+      { id: '1A', answer: 'GATO', row: 1, col: 1, direction: 'across', clue: 'Pequena pantera silenciosa que governa os sofás.', clueType: 'enigmatica' },
+      { id: '2D', answer: 'TERRA', row: 1, col: 3, direction: 'down', clue: 'Vastidão de argila e água girando no infinito escuro.', clueType: 'enigmatica' },
+      { id: '3A', answer: 'RATO', row: 3, col: 3, direction: 'across', clue: 'O primeiro passageiro a desembarcar do barco trágico.', clueType: 'enigmatica' },
+      { id: '4D', answer: 'AMIGO', row: 3, col: 6, direction: 'down', clue: 'Espelho da nossa alma que diz verdades cruas com afeto.', clueType: 'enigmatica' },
+      { id: '5A', answer: 'MAU', row: 4, col: 6, direction: 'across', clue: 'A força da ausência de luz na conduta humana.', clueType: 'enigmatica' }
+    ]
+  },
+  dificil_10: {
+    date: '',
+    size: 11,
+    entries: [
+      { id: '1A', answer: 'PORTA', row: 1, col: 1, direction: 'across', clue: 'Guardiã inerte que decide sobre as idas e vindas.', clueType: 'enigmatica' },
+      { id: '2D', answer: 'ROSA', row: 1, col: 3, direction: 'down', clue: 'Frágil rainha coroada cercada de espinhos cruéis.', clueType: 'enigmatica' },
+      { id: '3A', answer: 'SOL', row: 3, col: 3, direction: 'across', clue: 'Divindade dourada consumindo a si mesma no vácuo gelado.', clueType: 'enigmatica' },
+      { id: '4D', answer: 'LIVRO', row: 3, col: 5, direction: 'down', clue: 'Portal de papel feito de árvores mortas que revive mentes.', clueType: 'enigmatica' },
+      { id: '5A', answer: 'RUA', row: 6, col: 5, direction: 'across', clue: 'Linha de asfalto que corta o silêncio da noite.', clueType: 'enigmatica' },
+      { id: '6D', answer: 'AZUL', row: 6, col: 7, direction: 'down', clue: 'A cor do manto celeste e da melancolia dos poetas.', clueType: 'enigmatica' },
+      { id: '7A', answer: 'LUA', row: 9, col: 7, direction: 'across', clue: 'A lanterna dos loucos, poetas e lobos solitários.', clueType: 'enigmatica' }
+    ]
   }
+};
 
-  const types: CrosswordClueType[] = ['direta', 'contextual', 'enigmatica'];
-  const seed = getSeedForDate(dateStr + '_crossword');
-  const answers = ['PORTA', 'ROSA', 'SOL', 'LIVRO'];
-  const layout = [
-    { id: '1A', answer: answers[0], row: 0, col: 1, direction: 'across' as const },
-    { id: '2D', answer: answers[1], row: 0, col: 3, direction: 'down' as const },
-    { id: '3A', answer: answers[2], row: 2, col: 3, direction: 'across' as const },
-    { id: '4D', answer: answers[3], row: 2, col: 5, direction: 'down' as const }
-  ];
-
-  const entries = layout.map((entry, index) => {
-    const clueType = types[(seed + index) % types.length];
-    return {
+export function getCrosswordForDate(dateStr: string, difficulty: 'facil' | 'medio' | 'dificil' = 'medio', duration: number = 5): CrosswordChallenge {
+  initLocalStorage();
+  const templateKey = `${difficulty}_${duration}`;
+  const template = CROSSWORD_TEMPLATES[templateKey] || CROSSWORD_TEMPLATES['medio_5'];
+  
+  return {
+    date: dateStr,
+    size: template.size,
+    entries: template.entries.map(entry => ({
       ...entry,
-      clueType,
-      clue: getCrosswordClue(entry.answer, clueType)
-    };
-  });
-
-  const challenge: CrosswordChallenge = { date: dateStr, size: 7, entries };
-  challenges[dateStr] = challenge;
-  localStorage.setItem(key, JSON.stringify(challenges));
-  return challenge;
+      direction: entry.direction as 'across' | 'down'
+    }))
+  };
 }
 
 export function getSpecialResultForDate(
@@ -1464,42 +1524,71 @@ export async function ensureWordsLoaded(length: number) {
   }
 }
 
-export function validateWord(word: string, length: number, targets: string[] = []): boolean {
-  const normalized = word.toLowerCase().trim();
-  
+export function validateWord(word: string, length: number, targets: string[] = []): { valid: boolean; code?: string } {
+  // 1. Normalização
+  const normalized = word
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z]/g, '')
+    .trim();
+
+  // 2. Validação por tamanho
+  if (normalized.length !== length) {
+    return { valid: false, code: 'INVALID_LENGTH' };
+  }
+
   // Target word is always valid
-  if (targets.map(t => t.toLowerCase().trim()).includes(normalized)) {
-    return true;
+  const normalizedTargets = targets.map(t => 
+    t.normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z]/g, '')
+      .trim()
+  );
+  if (normalizedTargets.includes(normalized)) {
+    return { valid: true };
   }
-  
-  // 1. Check in-memory Set
+
+  // 3. Validação local (memória)
   if (loadedWordsCache.has(normalized)) {
-    return true;
+    return { valid: true };
   }
-  
-  // 2. Check local storage cache
+
+  // 4. Fallback local cache
   const localWordsStr = localStorage.getItem('termo_db_words');
   if (localWordsStr) {
     try {
       const localWords = JSON.parse(localWordsStr);
-      const exists = localWords.some((w: any) => 
-        w.word.toLowerCase().trim() === normalized && 
-        w.length === length && 
-        w.enabled !== false
-      );
-      if (exists) return true;
+      const exists = localWords.some((w: any) => {
+        const normLocal = w.word
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .replace(/[^a-z]/g, '')
+          .trim();
+        return normLocal === normalized && w.length === length && w.enabled !== false;
+      });
+      if (exists) return { valid: true };
     } catch (e) {
       console.error(e);
     }
   }
 
-  // 3. Check hardcoded fallbacks
+  // 5. Fallback hardcoded list
   const fallbackList = FALLBACK_WORDS_BY_LENGTH[length] || [];
-  if (fallbackList.map(w => w.toLowerCase()).includes(normalized)) {
-    return true;
+  const normalizedFallbacks = fallbackList.map(w => 
+    w.normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z]/g, '')
+      .trim()
+  );
+  if (normalizedFallbacks.includes(normalized)) {
+    return { valid: true };
   }
-  
-  return false;
+
+  return { valid: false, code: 'WORD_NOT_FOUND' };
 }
 
 export async function incrementWordUsage(word: string) {
@@ -1537,4 +1626,26 @@ export async function incrementWordsUsage(words: string[]) {
     console.error('Failed to increment words usage:', err);
   }
 }
+
+export async function getDbStatsFromSupabase() {
+  try {
+    const [totalRes, neverRes, onceRes, multRes] = await Promise.all([
+      supabase.from('palavras').select('*', { count: 'exact', head: true }),
+      supabase.from('palavras').select('*', { count: 'exact', head: true }).eq('UsedCount', 0),
+      supabase.from('palavras').select('*', { count: 'exact', head: true }).eq('UsedCount', 1),
+      supabase.from('palavras').select('*', { count: 'exact', head: true }).gt('UsedCount', 1)
+    ]);
+    
+    return {
+      total: totalRes.count || 0,
+      neverUsed: neverRes.count || 0,
+      usedOnce: onceRes.count || 0,
+      usedMultiple: multRes.count || 0
+    };
+  } catch (err) {
+    console.error("Error fetching db stats from Supabase:", err);
+    return { total: 0, neverUsed: 0, usedOnce: 0, usedMultiple: 0 };
+  }
+}
+
 

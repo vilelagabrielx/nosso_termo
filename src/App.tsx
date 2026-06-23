@@ -24,7 +24,7 @@ import {
   saveSpecialModeResult,
   getVersusWordsForDate,
   startupCheckJobs,
-  getDbStats,
+  getDbStatsFromSupabase,
   getDbConfig,
   saveDbConfig,
   createWordGenJob,
@@ -136,6 +136,8 @@ export default function App() {
   const [bombCharge, setBombCharge] = useState<number>(50);
   const [bombLastDelta, setBombLastDelta] = useState<number>(0);
   const [crosswordChallenge, setCrosswordChallenge] = useState<CrosswordChallenge | null>(null);
+  const [crosswordConfigDifficulty, setCrosswordConfigDifficulty] = useState<'facil' | 'medio' | 'dificil'>('medio');
+  const [crosswordConfigDuration, setCrosswordConfigDuration] = useState<number>(5); // 2, 5, or 10 min
   const [crosswordCells, setCrosswordCells] = useState<Record<string, string>>({});
   const [crosswordSelectedId, setCrosswordSelectedId] = useState<string>('1A');
   const [crosswordFocusedKey, setCrosswordFocusedKey] = useState<string | null>(null);
@@ -684,10 +686,7 @@ export default function App() {
     }
   };
 
-  const loadAdminData = () => {
-    const stats = getDbStats();
-    setAdminStats(stats);
-
+  const loadAdminData = async () => {
     const jobs = JSON.parse(localStorage.getItem('termo_db_jobs') || '[]');
     const sorted = [...jobs].sort((a: any, b: any) => b.requestedAt.localeCompare(a.requestedAt));
     setGenerationJobs(sorted);
@@ -695,6 +694,25 @@ export default function App() {
     const config = getDbConfig();
     setConfigThreshold(config.minLimitPercent);
     setConfigBatchSize(config.autoGenBatchSize);
+
+    try {
+      const remoteStats = await getDbStatsFromSupabase();
+      const pendingJobsCount = jobs.filter((j: any) => j.status === 'Pending' || j.status === 'Processing').length;
+      let lastJob = null;
+      if (jobs.length > 0) {
+        const sortedJobs = [...jobs].sort((a: any, b: any) => b.requestedAt.localeCompare(a.requestedAt));
+        lastJob = sortedJobs[0];
+      }
+
+      setAdminStats({
+        ...remoteStats,
+        lastJob,
+        pendingJobsCount,
+        lowUsagePercent: remoteStats.total > 0 ? (remoteStats.neverUsed / remoteStats.total) * 100 : 0
+      });
+    } catch (err) {
+      console.error("Failed to load admin stats:", err);
+    }
   };
 
   useEffect(() => {
@@ -703,7 +721,7 @@ export default function App() {
 
       const interval = setInterval(() => {
         loadAdminData();
-      }, 1500);
+      }, 2500);
 
       return () => clearInterval(interval);
     }
@@ -848,7 +866,12 @@ export default function App() {
   const handleStartCrossword = () => {
     if (crosswordResultToday) return;
 
-    const challenge = getCrosswordForDate(todayStr);
+    // In Versus mode, lock crossword difficulty to 'medio' and duration to 5 minutes
+    const isVersus = activePlayer !== 'Ambos';
+    const diff = isVersus ? 'medio' : crosswordConfigDifficulty;
+    const dur = isVersus ? 5 : crosswordConfigDuration;
+
+    const challenge = getCrosswordForDate(todayStr, diff, dur);
     setGameModeType('crossword');
     setCrosswordChallenge(challenge);
     setTargetWords(challenge.entries.map(entry => entry.answer));
@@ -2336,7 +2359,15 @@ export default function App() {
     setCrosswordMessage('Palavra confirmada.');
 
     if (nextSolvedIds.length === crosswordChallenge.entries.length) {
-      const score = Math.max(40, 240 - Math.floor(elapsedTime / 2));
+      const isVersus = activePlayer !== 'Ambos';
+      const activeDiff = isVersus ? 'medio' : crosswordConfigDifficulty;
+      const activeDur = isVersus ? 5 : crosswordConfigDuration;
+
+      const diffMultiplier = activeDiff === 'facil' ? 0.8 : activeDiff === 'dificil' ? 1.3 : 1.0;
+      const basePoints = activeDur === 2 ? 120 : activeDur === 10 ? 400 : 240;
+      const minPoints = activeDur === 2 ? 20 : activeDur === 10 ? 60 : 40;
+      const score = Math.max(minPoints, Math.floor((basePoints - Math.floor(elapsedTime / 2)) * diffMultiplier));
+
       finishSpecialMode('crossword', true, nextSolvedIds.length, nextSolvedIds.length, 'Grade completa.', score);
     }
   };
@@ -2950,6 +2981,59 @@ export default function App() {
                   )}
                 </div>
               )}
+
+              {!crosswordResultToday && activePlayer === 'Ambos' && (
+                <div style={{ textAlign: 'left', marginTop: '1rem', marginBottom: '1.5rem' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Dificuldade das Pistas:</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
+                    {(['facil', 'medio', 'dificil'] as const).map(diff => (
+                      <button
+                        key={diff}
+                        type="button"
+                        style={{
+                          padding: '0.5rem 0.25rem',
+                          borderRadius: '8px',
+                          border: '1px solid var(--glass-border)',
+                          background: crosswordConfigDifficulty === diff ? 'var(--accent-cyan)' : 'rgba(255,255,255,0.03)',
+                          color: crosswordConfigDifficulty === diff ? '#000' : 'white',
+                          fontWeight: 'bold',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                        onClick={() => setCrosswordConfigDifficulty(diff)}
+                      >
+                        {diff === 'facil' ? 'Fácil' : diff === 'medio' ? 'Médio' : 'Difícil'}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase' }}>Tempo Médio / Palavras:</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                    {[2, 5, 10].map(dur => (
+                      <button
+                        key={dur}
+                        type="button"
+                        style={{
+                          padding: '0.5rem 0.25rem',
+                          borderRadius: '8px',
+                          border: '1px solid var(--glass-border)',
+                          background: crosswordConfigDuration === dur ? 'var(--accent-cyan)' : 'rgba(255,255,255,0.03)',
+                          color: crosswordConfigDuration === dur ? '#000' : 'white',
+                          fontWeight: 'bold',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                        onClick={() => setCrosswordConfigDuration(dur)}
+                      >
+                        {dur === 2 ? '2 min (4 p.)' : dur === 5 ? '5 min (5 p.)' : '10 min (7 p.)'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <button className="challenge-btn" disabled={!!crosswordResultToday} onClick={handleStartCrossword}>
                 {crosswordResultToday ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Grid3X3 size={16} /> Abrir Grade</>}
               </button>
