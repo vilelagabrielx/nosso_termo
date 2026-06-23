@@ -261,8 +261,10 @@ export async function syncSupabaseData() {
     })));
   }
 
-  const { data: versus } = await supabase.from('versus_results').select('*').order('date', { ascending: false }).limit(50);
-  if (versus) {
+  const { data: versus, error: versusError } = await supabase.from('versus_results').select('*').order('date', { ascending: false }).limit(50);
+  if (versusError) {
+    console.error("Erro ao carregar versus_results do Supabase:", versusError);
+  } else if (versus) {
     localStorage.setItem('termo_versus_results', JSON.stringify(versus.map((row: any) => ({
       date: String(row.date),
       gabrielTermo: row.gabriel_termo_score || 0,
@@ -799,7 +801,7 @@ export function saveVersusMatch(match: VersusResult) {
   localStorage.setItem('termo_versus_results', JSON.stringify(list));
 
   // Persist to Supabase
-  void supabase.from('versus_results').upsert({
+  supabase.from('versus_results').upsert({
     date: match.date,
     gabriel_termo_score: match.gabrielTermo,
     gabriel_dueto_score: match.gabrielDueto,
@@ -810,7 +812,13 @@ export function saveVersusMatch(match: VersusResult) {
     alessandra_quarteto_score: match.alessandraQuarteto,
     alessandra_total_score: match.alessandraTotal,
     winner: match.winner
-  }, { onConflict: 'date' });
+  }, { onConflict: 'date' }).then(({ error }) => {
+    if (error) {
+      console.error("Erro ao salvar Duelo Versus no Supabase:", error);
+    } else {
+      console.log("Duelo Versus salvo com sucesso no Supabase.");
+    }
+  });
 }
 
 export function getVersusHistory(): VersusResult[] {

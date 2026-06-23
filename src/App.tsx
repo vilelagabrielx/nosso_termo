@@ -106,6 +106,8 @@ export default function App() {
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [waitingForOpponent, setWaitingForOpponent] = useState<boolean>(false);
   const [versusOpponentType, setVersusOpponentType] = useState<'bot' | 'real'>('bot');
+  const [woRemainingTime, setWoRemainingTime] = useState<number | null>(null);
+  const woTimerRef = useRef<any>(null);
 
   // Blitz States
   const [blitzRecordsList, setBlitzRecordsList] = useState<BlitzRecord[]>([]);
@@ -1129,6 +1131,87 @@ export default function App() {
       });
     }
   };
+
+  const declareWO = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (oppIntervalRef.current) clearInterval(oppIntervalRef.current);
+    if (woTimerRef.current) clearInterval(woTimerRef.current);
+    woTimerRef.current = null;
+    setWoRemainingTime(null);
+
+    const gScores = gabrielVersusScoresRef.current;
+    const aScores = alessandraVersusScoresRef.current;
+
+    const finalizedVersus: VersusResult = {
+      date: todayStr,
+      gabrielTermo: gScores.termo,
+      gabrielDueto: gScores.dueto,
+      gabrielQuarteto: gScores.quarteto,
+      gabrielTotal: gScores.termo + gScores.dueto + gScores.quarteto,
+      alessandraTermo: aScores.termo,
+      alessandraDueto: aScores.dueto,
+      alessandraQuarteto: aScores.quarteto,
+      alessandraTotal: aScores.termo + aScores.dueto + aScores.quarteto,
+      winner: activePlayer === 'Ambos' ? 'Empate' : activePlayer
+    };
+
+    saveVersusMatch(finalizedVersus);
+    setVersusMatchToday(finalizedVersus);
+    setVersusHistory(getVersusHistory());
+
+    alert(`O oponente ficou offline por mais de 5 minutos. Vitória por W.O. para você! 🏆`);
+    setView('versus-end');
+  };
+
+  useEffect(() => {
+    if (gameModeType !== 'versus' || versusOpponentType !== 'real') {
+      return;
+    }
+
+    const isActiveGame = view === 'playing' || view === 'versus-recap';
+    const isOpponentOnline = onlineUsers.includes(opponentName);
+    const isOpponentFinished = oppState.completed;
+
+    if (isActiveGame && !isOpponentFinished) {
+      if (isOpponentOnline) {
+        // Opponent is back online, clear timer
+        if (woTimerRef.current) {
+          clearInterval(woTimerRef.current);
+          woTimerRef.current = null;
+          setWoRemainingTime(null);
+        }
+      } else {
+        // Opponent is offline, start 5 min timer if not already running
+        if (!woTimerRef.current) {
+          setWoRemainingTime(300);
+          let secondsLeft = 300;
+          woTimerRef.current = setInterval(() => {
+            secondsLeft--;
+            setWoRemainingTime(secondsLeft);
+            if (secondsLeft <= 0) {
+              clearInterval(woTimerRef.current);
+              woTimerRef.current = null;
+              setWoRemainingTime(null);
+              declareWO();
+            }
+          }, 1000);
+        }
+      }
+    } else {
+      // Game ended or not in active state, clear timer
+      if (woTimerRef.current) {
+        clearInterval(woTimerRef.current);
+        woTimerRef.current = null;
+        setWoRemainingTime(null);
+      }
+    }
+
+    return () => {
+      if (woTimerRef.current) {
+        clearInterval(woTimerRef.current);
+      }
+    };
+  }, [onlineUsers, view, gameModeType, versusOpponentType, opponentName, oppState.completed]);
 
   // Initiate Versus Lobby connection
   const startVersusFlow = () => {
@@ -2216,10 +2299,12 @@ export default function App() {
               </div>
               <button
                 className="versus-summary-btn"
-                disabled={!!versusMatchToday}
+                disabled={!!versusMatchToday || !onlineUsers.includes(opponentName)}
                 onClick={startVersusFlow}
               >
-                {versusMatchToday ? `⏱️ Próximo em ${timeUntilMidnight}` : (onlineUsers.includes(opponentName) ? 'Convidar Jogador ⚔️' : 'Jogar Contra Robô 🤖')}
+                {versusMatchToday 
+                  ? `⏱️ Próximo em ${timeUntilMidnight}` 
+                  : (onlineUsers.includes(opponentName) ? 'Convidar Jogador ⚔️' : 'Oponente Offline 💤')}
               </button>
             </div>
           )}
@@ -2920,6 +3005,22 @@ export default function App() {
           ) : (
             <div className={gameModeType === 'versus' ? 'versus-layout' : ''}>
               <div>
+                {woRemainingTime !== null && (
+                  <div className="wo-warning-banner" style={{
+                    background: 'rgba(239, 68, 68, 0.95)',
+                    color: '#fff',
+                    padding: '0.75rem',
+                    textAlign: 'center',
+                    fontWeight: 'bold',
+                    fontSize: '0.9rem',
+                    borderRadius: '8px',
+                    marginBottom: '1rem',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    boxShadow: '0 4px 15px rgba(239, 68, 68, 0.4)'
+                  }}>
+                    ⚠️ Oponente desconectado! Vitória por W.O. em {formatTime(woRemainingTime)}
+                  </div>
+                )}
                 <GameBoard
                   mode={activeMode}
                   words={targetWords}
