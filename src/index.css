@@ -273,14 +273,14 @@ header {
 
 .challenge-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr;
   gap: 1.5rem;
   margin-bottom: 3rem;
 }
 
-@media (max-width: 768px) {
+@media (min-width: 768px) {
   .challenge-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
@@ -425,13 +425,13 @@ header {
 /* History & Stats Row */
 .stats-history-row {
   display: grid;
-  grid-template-columns: 1.2fr 1.8fr;
+  grid-template-columns: 1fr;
   gap: 2rem;
 }
 
-@media (max-width: 900px) {
+@media (min-width: 900px) {
   .stats-history-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1.2fr 1.8fr;
   }
 }
 
@@ -671,25 +671,25 @@ header {
 }
 
 .boards-wrapper.mode-2 {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   max-width: 720px;
   margin-left: auto;
   margin-right: auto;
 }
 
 .boards-wrapper.mode-4 {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   max-width: 720px;
   margin-left: auto;
   margin-right: auto;
 }
 
-@media (max-width: 600px) {
+@media (min-width: 600px) {
   .boards-wrapper.mode-2 {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
   }
   .boards-wrapper.mode-4 {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
@@ -765,17 +765,17 @@ header {
 }
 
 .boards-wrapper.mode-4 .game-cell {
-  width: 34px;
-  height: 34px;
-  font-size: 1.1rem;
+  width: 28px;
+  height: 28px;
+  font-size: 0.95rem;
   border-radius: 6px;
 }
 
-@media (max-width: 500px) {
+@media (min-width: 500px) {
   .boards-wrapper.mode-4 .game-cell {
-    width: 28px;
-    height: 28px;
-    font-size: 0.95rem;
+    width: 34px;
+    height: 34px;
+    font-size: 1.1rem;
   }
 }
 
@@ -816,17 +816,27 @@ header {
 .keyboard-container {
   max-width: 550px;
   width: 100%;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 0 0.5rem;
+  gap: 4px;
+  padding: 0 0.25rem;
 }
 
 .keyboard-row {
   display: flex;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
+}
+
+@media (min-width: 480px) {
+  .keyboard-container {
+    gap: 8px;
+    padding: 0 0.5rem;
+  }
+  
+  .keyboard-row {
+    gap: 6px;
+  }
 }
 
 .keyboard-key {
@@ -1098,14 +1108,14 @@ header {
 /* Versus Mode Styles */
 .versus-layout {
   display: grid;
-  grid-template-columns: 2.2fr 1fr;
+  grid-template-columns: 1fr;
   gap: 1.5rem;
   width: 100%;
 }
 
-@media (max-width: 900px) {
+@media (min-width: 900px) {
   .versus-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: 2.2fr 1fr;
   }
 }
 
@@ -1298,15 +1308,19 @@ header {
   margin-bottom: 2.5rem;
   box-shadow: 0 8px 24px rgba(0,0,0,0.3);
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 1rem;
   align-items: center;
+  text-align: center;
 }
 
-@media (max-width: 600px) {
+@media (min-width: 600px) {
   .versus-summary-card {
-    flex-direction: column;
-    gap: 1rem;
-    text-align: center;
+    flex-direction: row;
+    justify-content: space-between;
+    text-align: left;
+    align-items: center;
+    gap: 0;
   }
 }
 
@@ -1431,14 +1445,14 @@ header {
 /* Special Modes */
 .special-modes-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   gap: 1.5rem;
   margin-bottom: 2.5rem;
 }
 
-@media (max-width: 768px) {
+@media (min-width: 768px) {
   .special-modes-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
@@ -1512,14 +1526,14 @@ header {
 
 .crossword-layout {
   display: grid;
-  grid-template-columns: minmax(280px, 420px) 1fr;
+  grid-template-columns: 1fr;
   gap: 1.5rem;
   align-items: start;
 }
 
-@media (max-width: 820px) {
+@media (min-width: 820px) {
   .crossword-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(280px, 420px) 1fr;
   }
 }
 
@@ -1585,6 +1599,20 @@ header {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.crossword-clues-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .crossword-clues-sections {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
 }
 
 .crossword-clues-title {
@@ -1653,4 +1681,18 @@ header {
 .crossword-giveup-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-primary);
+}
+
+.word-len-badge {
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(6, 182, 212, 0.15);
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  color: var(--accent-cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: inline-flex;
+  align-items: center;
 }

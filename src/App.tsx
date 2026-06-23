@@ -1919,7 +1919,7 @@ export default function App() {
                     </div>
                   </div>
                   <h3 className="challenge-title">Termo</h3>
-                  <p className="challenge-desc">Adivinhe uma única palavra secreta em até {todayChallenge ? todayChallenge.words.mode1.length + 1 : 6} tentativas.</p>
+                  <p className="challenge-desc">Adivinhe uma única palavra de {todayChallenge ? todayChallenge.words.mode1.length : '5'} letras em até {todayChallenge ? todayChallenge.words.mode1.length + 1 : 6} tentativas.</p>
                   
                   {todayResult?.mode1 && (
                     <div className="challenge-stats">
@@ -1956,7 +1956,7 @@ export default function App() {
                     </div>
                   </div>
                   <h3 className="challenge-title">Dueto</h3>
-                  <p className="challenge-desc">Adivinhe duas palavras simultaneamente em até {todayChallenge ? todayChallenge.words.mode2[0].length + 1 : 7} tentativas. Palpites valem para ambas.</p>
+                  <p className="challenge-desc">Adivinhe duas palavras de {todayChallenge ? todayChallenge.words.mode2[0].length : '5'} letras simultaneamente em até {todayChallenge ? todayChallenge.words.mode2[0].length + 1 : 7} tentativas. Palpites valem para ambas.</p>
                   
                   {todayResult?.mode2 && (
                     <div className="challenge-stats">
@@ -1993,7 +1993,7 @@ export default function App() {
                     </div>
                   </div>
                   <h3 className="challenge-title">Quarteto</h3>
-                  <p className="challenge-desc">Adivinhe quatro palavras simultaneamente em até {todayChallenge ? todayChallenge.words.mode4[0].length + 1 : 9} tentativas. O teste supremo.</p>
+                  <p className="challenge-desc">Adivinhe quatro palavras de {todayChallenge ? todayChallenge.words.mode4[0].length : '5'} letras simultaneamente em até {todayChallenge ? todayChallenge.words.mode4[0].length + 1 : 9} tentativas. O teste supremo.</p>
                   
                   {todayResult?.mode4 && (
                     <div className="challenge-stats">
@@ -2247,14 +2247,21 @@ export default function App() {
                 <ArrowLeft size={18} />
               </button>
               <div className="game-title-info">
-                <h2>
-                  {gameModeType === 'blitz' 
-                    ? `Modo Blitz Cooperativo`
-                    : gameModeType === 'bomb'
-                      ? 'Modo Bomba'
-                      : gameModeType === 'crossword'
-                        ? 'Palavras Cruzadas'
-                        : (activeMode === 1 ? 'Termo' : activeMode === 2 ? 'Dueto' : 'Quarteto')}
+                <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <span>
+                    {gameModeType === 'blitz' 
+                      ? `Modo Blitz`
+                      : gameModeType === 'bomb'
+                        ? 'Modo Bomba'
+                        : gameModeType === 'crossword'
+                          ? 'Palavras Cruzadas'
+                          : (activeMode === 1 ? 'Termo' : activeMode === 2 ? 'Dueto' : 'Quarteto')}
+                  </span>
+                  {gameModeType !== 'crossword' && targetWords[0] && (
+                    <span className="word-len-badge">
+                      {targetWords[0].length} letras
+                    </span>
+                  )}
                 </h2>
                 <p>
                   {gameModeType === 'blitz' 
