@@ -861,27 +861,25 @@ header {
   }
 
   .game-cell {
-    width: clamp(32px, calc((100vw - 4rem) / 7), 42px);
-    height: clamp(32px, calc((100vw - 4rem) / 7), 42px);
     font-size: 1.25rem;
   }
 
   .boards-wrapper.mode-2 .game-cell,
   .boards-wrapper.mode-4 .game-cell {
-    width: clamp(30px, calc((100vw - 4rem) / 8), 38px);
-    height: clamp(30px, calc((100vw - 4rem) / 8), 38px);
     font-size: 1rem;
   }
 }
 
 /* Single board card */
 .board-card {
+  --cols: 1;
   background: rgba(20, 24, 40, 0.4);
   border: 2px solid var(--glass-border);
   border-radius: 16px;
   padding: 1rem;
   position: relative;
   transition: border-color 0.3s ease;
+  max-width: min(100%, calc(var(--cols) * 52px + (var(--cols) - 1) * 5px + 2rem));
 }
 
 .board-card.solved {
@@ -913,19 +911,21 @@ header {
   gap: 5px;
   margin-top: 1rem;
   width: 100%;
+  min-width: 0;
 }
 
 .game-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
   gap: 5px;
-  justify-content: center;
+  width: 100%;
 }
 
 /* Grid cell styles */
 .game-cell {
   aspect-ratio: 1;
-  width: 52px;
-  height: 52px;
+  width: 100%;
+  min-width: 0;
   border: 2px solid var(--color-empty-border);
   border-radius: 8px;
   display: flex;
@@ -938,16 +938,11 @@ header {
   transition: border-color 0.1s ease;
 }
 
-/* Scale down based on mode */
 .boards-wrapper.mode-2 .game-cell {
-  width: 44px;
-  height: 44px;
   font-size: 1.3rem;
 }
 
 .boards-wrapper.mode-4 .game-cell {
-  width: 28px;
-  height: 28px;
   font-size: 0.95rem;
   border-radius: 6px;
 }

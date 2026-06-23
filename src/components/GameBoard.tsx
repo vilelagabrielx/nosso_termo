@@ -74,6 +74,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           <div 
             key={boardIndex} 
             className={`board-card ${isSolved ? 'solved' : ''}`}
+            style={{ '--cols': targetLen } as React.CSSProperties}
           >
             <div className="board-label">
               {isSolved ? `RESOLVIDO • ${targetLen} letras` : `PALAVRA ${boardIndex + 1} • ${targetLen} letras`}
@@ -113,6 +114,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   <div 
                     key={rowIndex} 
                     className={`game-row ${isShaking ? 'shake' : ''}`}
+                    style={{ '--cols': targetLen } as React.CSSProperties}
                   >
                     {Array.from({ length: targetLen }).map((_, cellIndex) => {
                       const letter = cellsContent[cellIndex] || '';
