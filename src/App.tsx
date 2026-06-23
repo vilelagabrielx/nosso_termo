@@ -2064,8 +2064,16 @@ export default function App() {
             </div>
           </div>
 
-          <button className="modal-close-btn" onClick={handleNextVersusRound}>
-            {versusRound === 3 ? 'Ver Resultado Final' : `Avançar para Rodada ${versusRound + 1}`}
+          <button 
+            className="modal-close-btn" 
+            onClick={handleNextVersusRound}
+            disabled={versusRound === 3 && versusOpponentType === 'real' && !oppState.completed}
+          >
+            {versusRound === 3 
+              ? (versusOpponentType === 'real' && !oppState.completed 
+                  ? 'Aguardando oponente concluir... ⌛' 
+                  : 'Ver Resultado Final') 
+              : `Avançar para Rodada ${versusRound + 1}`}
           </button>
         </div>
       ) : view === 'versus-end' ? (
