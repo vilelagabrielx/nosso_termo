@@ -95,6 +95,7 @@ export default function App() {
   // App navigation state
   const [view, setView] = useState<'dashboard' | 'playing' | 'lobby' | 'versus-recap' | 'versus-end' | 'blitz-end' | 'afogado-end' | 'admin'>('dashboard');
   const [activePlayer, setActivePlayerState] = useState<'Gabriel' | 'Alessandra' | 'Ambos'>('Gabriel');
+  const [isTestMode, setIsTestMode] = useState<boolean>(false);
   const [todayChallenge, setTodayChallenge] = useState<Challenge | null>(null);
   const [todayResult, setTodayResult] = useState<DailyResult | null>(null);
   const [historyList, setHistoryList] = useState<any[]>([]);
@@ -513,7 +514,7 @@ export default function App() {
   };
 
   const updateVersusScore = (game: 'termo' | 'dueto' | 'quarteto' | 'bomb' | 'crossword' | 'blitz' | 'afogado', score: number) => {
-    if (activePlayer === 'Ambos') return;
+    if (activePlayer === 'Ambos' || isTestMode) return;
 
     const gScores = { ...gabrielVersusScoresRef.current };
     const aScores = { ...alessandraVersusScoresRef.current };
@@ -972,6 +973,29 @@ export default function App() {
     detail: string,
     score: number
   ) => {
+    if (isTestMode) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      const result: SpecialModeResult = {
+        playerName: activePlayer,
+        date: todayStr,
+        mode: mode === 'bomb' ? 'bomb' : 'crossword',
+        success,
+        score,
+        time: elapsedTime,
+        attempts,
+        wordsSolved,
+        detail
+      };
+      if (mode === 'bomb') setBombResultToday(result);
+      if (mode === 'crossword') setCrosswordResultToday(result);
+      setModalSuccess(success);
+      setModalScore(score);
+      setModalAttempts(attempts);
+      setModalTime(elapsedTime);
+      setShowGameModal(true);
+      return;
+    }
+
     if (timerRef.current) clearInterval(timerRef.current);
 
     const result: SpecialModeResult = {
@@ -1372,26 +1396,38 @@ export default function App() {
         const success = allSolved;
 
         if (gameModeType === 'daily') {
-          const updatedDailyResult = saveModeResult(
-            activePlayer,
-            todayStr,
-            activeMode,
-            nextGuesses.length,
-            elapsedTime,
-            success,
-            wordsSolved
-          );
+          if (isTestMode) {
+            const score = success ? Math.max(10, 110 - nextGuesses.length * 15) : 0;
+            setModalSuccess(success);
+            setModalScore(score);
+            setModalAttempts(nextGuesses.length);
+            setModalTime(elapsedTime);
+            setShowGameModal(true);
+            if (success) {
+              setTriggerConfetti(true);
+            }
+          } else {
+            const updatedDailyResult = saveModeResult(
+              activePlayer,
+              todayStr,
+              activeMode,
+              nextGuesses.length,
+              elapsedTime,
+              success,
+              wordsSolved
+            );
 
-          const score = updatedDailyResult[activeMode === 1 ? 'mode1' : activeMode === 2 ? 'mode2' : 'mode4']?.score || 0;
+            const score = updatedDailyResult[activeMode === 1 ? 'mode1' : activeMode === 2 ? 'mode2' : 'mode4']?.score || 0;
 
-          setModalSuccess(success);
-          setModalScore(score);
-          setModalAttempts(nextGuesses.length);
-          setModalTime(elapsedTime);
-          setShowGameModal(true);
+            setModalSuccess(success);
+            setModalScore(score);
+            setModalAttempts(nextGuesses.length);
+            setModalTime(elapsedTime);
+            setShowGameModal(true);
 
-          if (success) {
-            setTriggerConfetti(true);
+            if (success) {
+              setTriggerConfetti(true);
+            }
           }
         } else {
           // Versus Round Ended
@@ -1435,6 +1471,11 @@ export default function App() {
 
           setGabrielVersusScores(updatedG);
           setAlessandraVersusScores(updatedA);
+
+          if (isTestMode) {
+            setView('versus-recap');
+            return;
+          }
 
           let matchWinner: 'Gabriel' | 'Alessandra' | 'Empate' = 'Empate';
           if (updatedG.total > updatedA.total) matchWinner = 'Gabriel';
@@ -2345,61 +2386,63 @@ export default function App() {
             playerName: activePlayer === 'Ambos' ? 'Gabriel' : activePlayer
           };
 
-          saveAfogadoMatch(match);
-          setAfogadoHistoryList(getAfogadoHistory());
-          setAfogadoRecordsList(getAfogadoRecords());
+          if (!isTestMode) {
+            saveAfogadoMatch(match);
+            setAfogadoHistoryList(getAfogadoHistory());
+            setAfogadoRecordsList(getAfogadoRecords());
 
-          if (activePlayer !== 'Ambos') {
-            const result: SpecialModeResult = {
-              playerName: activePlayer,
-              date: todayStr,
-              mode: 'afogado',
-              success: finalSolvedCount > 0,
-              score: score,
-              time: finalTime,
-              attempts: dicas,
-              wordsSolved: finalSolvedCount,
-              detail: `Sobreviveu por ${formatTime(finalTime)} (streak max: ${maxStrk})`
-            };
+            if (activePlayer !== 'Ambos') {
+              const result: SpecialModeResult = {
+                playerName: activePlayer,
+                date: todayStr,
+                mode: 'afogado',
+                success: finalSolvedCount > 0,
+                score: score,
+                time: finalTime,
+                attempts: dicas,
+                wordsSolved: finalSolvedCount,
+                detail: `Sobreviveu por ${formatTime(finalTime)} (streak max: ${maxStrk})`
+              };
 
-            saveSpecialModeResult(result);
-            setAfogadoResultToday(result);
-            updateVersusScore('afogado', score);
+              saveSpecialModeResult(result);
+              setAfogadoResultToday(result);
+              updateVersusScore('afogado', score);
 
-            if (versusOpponentType === 'bot') {
-              const botAfogadoSim = Math.round(6 + Math.random() * 10); // 6 to 16 solved
-              const botMaxStreakSim = Math.round(3 + Math.random() * 4);
-              const botScoreSim = botAfogadoSim * 120 + botMaxStreakSim * 25;
-              const oppName = activePlayer === 'Gabriel' ? 'Alessandra' : 'Gabriel';
-              setTimeout(() => {
-                const vMatch = getVersusMatchForDate(todayStr);
-                if (vMatch) {
-                  const finalizedVersus = { ...vMatch };
-                  if (oppName === 'Gabriel') {
-                    finalizedVersus.gabrielAfogado = botScoreSim;
-                    finalizedVersus.gabrielTotal = (finalizedVersus.gabrielTermo || 0) + (finalizedVersus.gabrielDueto || 0) + (finalizedVersus.gabrielQuarteto || 0) + (finalizedVersus.gabrielBomb || 0) + (finalizedVersus.gabrielCrossword || 0) + (finalizedVersus.gabrielBlitz || 0) + botScoreSim;
-                  } else {
-                    finalizedVersus.alessandraAfogado = botScoreSim;
-                    finalizedVersus.alessandraTotal = (finalizedVersus.alessandraTermo || 0) + (finalizedVersus.alessandraDueto || 0) + (finalizedVersus.alessandraQuarteto || 0) + (finalizedVersus.alessandraBomb || 0) + (finalizedVersus.alessandraCrossword || 0) + (finalizedVersus.alessandraBlitz || 0) + botScoreSim;
+              if (versusOpponentType === 'bot') {
+                const botAfogadoSim = Math.round(6 + Math.random() * 10); // 6 to 16 solved
+                const botMaxStreakSim = Math.round(3 + Math.random() * 4);
+                const botScoreSim = botAfogadoSim * 120 + botMaxStreakSim * 25;
+                const oppName = activePlayer === 'Gabriel' ? 'Alessandra' : 'Gabriel';
+                setTimeout(() => {
+                  const vMatch = getVersusMatchForDate(todayStr);
+                  if (vMatch) {
+                    const finalizedVersus = { ...vMatch };
+                    if (oppName === 'Gabriel') {
+                      finalizedVersus.gabrielAfogado = botScoreSim;
+                      finalizedVersus.gabrielTotal = (finalizedVersus.gabrielTermo || 0) + (finalizedVersus.gabrielDueto || 0) + (finalizedVersus.gabrielQuarteto || 0) + (finalizedVersus.gabrielBomb || 0) + (finalizedVersus.gabrielCrossword || 0) + (finalizedVersus.gabrielBlitz || 0) + botScoreSim;
+                    } else {
+                      finalizedVersus.alessandraAfogado = botScoreSim;
+                      finalizedVersus.alessandraTotal = (finalizedVersus.alessandraTermo || 0) + (finalizedVersus.alessandraDueto || 0) + (finalizedVersus.alessandraQuarteto || 0) + (finalizedVersus.alessandraBomb || 0) + (finalizedVersus.alessandraCrossword || 0) + (finalizedVersus.alessandraBlitz || 0) + botScoreSim;
+                    }
+                    
+                    finalizedVersus.winner = finalizedVersus.gabrielTotal > finalizedVersus.alessandraTotal
+                      ? 'Gabriel'
+                      : finalizedVersus.alessandraTotal > finalizedVersus.gabrielTotal
+                      ? 'Alessandra'
+                      : 'Empate';
+
+                    saveVersusMatch(finalizedVersus);
+                    setVersusMatchToday(finalizedVersus);
+                    setVersusHistory(getVersusHistory());
+
+                    setOppState(prev => ({
+                      ...prev,
+                      afogadoScore: botScoreSim,
+                      totalScore: oppName === 'Gabriel' ? finalizedVersus.gabrielTotal : finalizedVersus.alessandraTotal
+                    }));
                   }
-                  
-                  finalizedVersus.winner = finalizedVersus.gabrielTotal > finalizedVersus.alessandraTotal
-                    ? 'Gabriel'
-                    : finalizedVersus.alessandraTotal > finalizedVersus.gabrielTotal
-                    ? 'Alessandra'
-                    : 'Empate';
-
-                  saveVersusMatch(finalizedVersus);
-                  setVersusMatchToday(finalizedVersus);
-                  setVersusHistory(getVersusHistory());
-
-                  setOppState(prev => ({
-                    ...prev,
-                    afogadoScore: botScoreSim,
-                    totalScore: oppName === 'Gabriel' ? finalizedVersus.gabrielTotal : finalizedVersus.alessandraTotal
-                  }));
-                }
-              }, 1200);
+                }, 1200);
+              }
             }
           }
 
@@ -2541,9 +2584,11 @@ export default function App() {
                 detail: `Resolveu ${prevSolvedCount} palavras (streak max: ${prevMaxStreak})`
               };
 
-              saveSpecialModeResult(result);
-              setBlitzResultToday(result);
-              updateVersusScore('blitz', blitzScore);
+              if (!isTestMode) {
+                saveSpecialModeResult(result);
+                setBlitzResultToday(result);
+                updateVersusScore('blitz', blitzScore);
+              }
 
               if (versusOpponentType === 'bot') {
                 const botBlitzSim = Math.round(5 + Math.random() * 6); // 5 to 11 solved
@@ -2591,21 +2636,25 @@ export default function App() {
                 avgTimePerWord: avg
               };
 
-              const records = getBlitzRecords();
-              const matchingRecord = records.find(r => r.duration === blitzConfigDuration);
-              let isNew = false;
-              if (!matchingRecord || prevSolvedCount > matchingRecord.wordsSolved) {
-                isNew = true;
-              }
+              if (!isTestMode) {
+                const records = getBlitzRecords();
+                const matchingRecord = records.find(r => r.duration === blitzConfigDuration);
+                let isNew = false;
+                if (!matchingRecord || prevSolvedCount > matchingRecord.wordsSolved) {
+                  isNew = true;
+                }
 
-              saveBlitzMatch(finalMatch);
-              setBlitzIsNewRecord(isNew);
+                saveBlitzMatch(finalMatch);
+                setBlitzIsNewRecord(isNew);
 
-              setBlitzRecordsList(getBlitzRecords());
-              setBlitzHistoryList(getBlitzHistory());
+                setBlitzRecordsList(getBlitzRecords());
+                setBlitzHistoryList(getBlitzHistory());
 
-              if (isNew) {
-                setTriggerConfetti(true);
+                if (isNew) {
+                  setTriggerConfetti(true);
+                }
+              } else {
+                setBlitzIsNewRecord(false);
               }
 
               setView('blitz-end');
@@ -2917,6 +2966,20 @@ export default function App() {
             onClick={() => handlePlayerChange('Ambos')}
           >
             👥 Ambos
+          </button>
+          <button
+            className={`player-btn ${isTestMode ? 'active' : ''}`}
+            style={{ 
+              border: '1px solid rgba(245, 158, 11, 0.3)', 
+              background: isTestMode ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.4), rgba(239, 68, 68, 0.4))' : 'transparent',
+              color: isTestMode ? '#f59e0b' : 'var(--text-secondary)'
+            }}
+            onClick={() => {
+              setIsTestMode(!isTestMode);
+              showToast(!isTestMode ? "🧪 Modo Teste Ativo (Pontos Desativados)" : "🧪 Modo Teste Desativado");
+            }}
+          >
+            🧪 {isTestMode ? 'Modo Teste ON' : 'Modo Teste OFF'}
           </button>
           <button
             className={`player-btn ${view === 'admin' ? 'active' : ''}`}
@@ -3460,9 +3523,11 @@ export default function App() {
               <button
                 className="versus-summary-btn"
                 disabled={
-                  (!!versusMatchToday && myVersusScores.quarteto > 0) ||
-                  (!versusMatchToday && !onlineUsers.includes(opponentName)) ||
-                  (!!versusMatchToday && !(myVersusScores.termo > 0 || myVersusScores.dueto > 0) && !onlineUsers.includes(opponentName))
+                  !isTestMode && (
+                    (!!versusMatchToday && myVersusScores.quarteto > 0) ||
+                    (!versusMatchToday && !onlineUsers.includes(opponentName)) ||
+                    (!!versusMatchToday && !(myVersusScores.termo > 0 || myVersusScores.dueto > 0) && !onlineUsers.includes(opponentName))
+                  )
                 }
                 onClick={
                   versusMatchToday && (myVersusScores.termo > 0 || myVersusScores.dueto > 0)
@@ -3470,12 +3535,12 @@ export default function App() {
                     : startVersusFlow
                 }
               >
-                {versusMatchToday && myVersusScores.quarteto > 0 ? (
+                {versusMatchToday && myVersusScores.quarteto > 0 && !isTestMode ? (
                   `⏱️ Próximo em ${timeUntilMidnight}`
                 ) : versusMatchToday && (myVersusScores.termo > 0 || myVersusScores.dueto > 0) ? (
                   'Continuar Duelo ⚔'
                 ) : (
-                  onlineUsers.includes(opponentName) ? 'Convidar Jogador ⚔️' : 'Oponente Offline 💤'
+                  isTestMode ? 'Jogar Versus Teste ⚔️' : onlineUsers.includes(opponentName) ? 'Convidar Jogador ⚔️' : 'Oponente Offline 💤'
                 )}
               </button>
             </div>
@@ -3533,8 +3598,8 @@ export default function App() {
                   )}
                 </div>
               )}
-              <button className="challenge-btn" disabled={!!bombResultToday} onClick={handleStartBomb}>
-                {bombResultToday ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Bomb size={16} /> Jogar Bomba</>}
+              <button className="challenge-btn" disabled={!!bombResultToday && !isTestMode} onClick={handleStartBomb}>
+                {bombResultToday && !isTestMode ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Bomb size={16} /> Jogar Bomba {isTestMode ? 'Teste' : ''}</>}
               </button>
             </div>
 
@@ -3641,8 +3706,8 @@ export default function App() {
                 </div>
               )}
 
-              <button className="challenge-btn" disabled={!!crosswordResultToday} onClick={handleStartCrossword}>
-                {crosswordResultToday ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Grid3X3 size={16} /> Abrir Grade</>}
+              <button className="challenge-btn" disabled={!!crosswordResultToday && !isTestMode} onClick={handleStartCrossword}>
+                {crosswordResultToday && !isTestMode ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Grid3X3 size={16} /> Abrir Grade {isTestMode ? 'Teste' : ''}</>}
               </button>
             </div>
 
@@ -3707,8 +3772,8 @@ export default function App() {
                 </div>
               )}
 
-              <button className="challenge-btn" style={{ background: 'linear-gradient(135deg, #0284c7, #7c3aed)', color: 'white' }} disabled={!!afogadoResultToday} onClick={handleStartAfogado}>
-                {afogadoResultToday ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Activity size={16} /> Jogar Afogado</>}
+              <button className="challenge-btn" style={{ background: 'linear-gradient(135deg, #0284c7, #7c3aed)', color: 'white' }} disabled={!!afogadoResultToday && !isTestMode} onClick={handleStartAfogado}>
+                {afogadoResultToday && !isTestMode ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Activity size={16} /> Jogar Afogado {isTestMode ? 'Teste' : ''}</>}
               </button>
             </div>
           </div>
@@ -3785,14 +3850,14 @@ export default function App() {
                 </div>
                 <button
                   className="challenge-btn"
-                  disabled={!!blitzResultToday}
-                  style={{ background: blitzResultToday ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #f59e0b, #ec4899)', color: 'white', width: '100%', padding: '1rem' }}
+                  disabled={!!blitzResultToday && !isTestMode}
+                  style={{ background: blitzResultToday && !isTestMode ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #f59e0b, #ec4899)', color: 'white', width: '100%', padding: '1rem' }}
                   onClick={() => {
                     setBlitzConfigDuration(3); // Lock to 3 minutes for versus mode
                     handleStartBlitz();
                   }}
                 >
-                  {blitzResultToday ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Zap size={18} fill="white" /> Começar Corrida Blitz (3 min)</>}
+                  {blitzResultToday && !isTestMode ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Zap size={18} fill="white" /> Começar Corrida Blitz (3 min) {isTestMode ? 'Teste' : ''}</>}
                 </button>
               </>
             )}
@@ -3864,10 +3929,10 @@ export default function App() {
 
                   <button
                     className="challenge-btn"
-                    disabled={!!todayResult?.mode1}
+                    disabled={!!todayResult?.mode1 && !isTestMode}
                     onClick={() => handleStartGame(1)}
                   >
-                    {todayResult?.mode1 ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Play size={16} fill="white" /> Jogar</>}
+                    {todayResult?.mode1 && !isTestMode ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Play size={16} fill="white" /> Jogar {isTestMode ? 'Teste' : ''}</>}
                   </button>
                 </div>
 
@@ -3919,10 +3984,10 @@ export default function App() {
 
                   <button
                     className="challenge-btn"
-                    disabled={!!todayResult?.mode2}
+                    disabled={!!todayResult?.mode2 && !isTestMode}
                     onClick={() => handleStartGame(2)}
                   >
-                    {todayResult?.mode2 ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Play size={16} fill="white" /> Jogar</>}
+                    {todayResult?.mode2 && !isTestMode ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Play size={16} fill="white" /> Jogar {isTestMode ? 'Teste' : ''}</>}
                   </button>
                 </div>
 
@@ -3974,10 +4039,10 @@ export default function App() {
 
                   <button
                     className="challenge-btn"
-                    disabled={!!todayResult?.mode4}
+                    disabled={!!todayResult?.mode4 && !isTestMode}
                     onClick={() => handleStartGame(4)}
                   >
-                    {todayResult?.mode4 ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Play size={16} fill="white" /> Jogar</>}
+                    {todayResult?.mode4 && !isTestMode ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Play size={16} fill="white" /> Jogar {isTestMode ? 'Teste' : ''}</>}
                   </button>
                 </div>
 
@@ -4201,6 +4266,30 @@ export default function App() {
       ) : (
         /* Gameplay Screen View */
         <div className="game-container">
+          {isTestMode && (
+            <div style={{
+              background: 'linear-gradient(90deg, #f59e0b, #ef4444)',
+              color: 'white',
+              textAlign: 'center',
+              padding: '0.4rem',
+              fontWeight: 800,
+              fontSize: '0.85rem',
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              borderRadius: '8px 8px 0 0',
+              borderBottom: '1px solid rgba(255,255,255,0.2)',
+              boxShadow: '0 4px 10px rgba(0,0,0,0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              width: '100%',
+              marginBottom: '1rem'
+            }}>
+              <span>🧪 MODO TESTE ATIVO</span>
+              <span style={{ fontSize: '0.75rem', opacity: 0.85 }}>(Resultados e pontuações não serão salvos)</span>
+            </div>
+          )}
           <div className="game-header">
             <div className="game-header-left">
               <button className="back-btn" onClick={handleBackToDashboard}>
