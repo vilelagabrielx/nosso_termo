@@ -225,7 +225,7 @@ export async function syncSupabaseData() {
   initLocalStorage();
 
   const lastSync = localStorage.getItem('termo_db_last_sync');
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getTodayDateString();
   const hasLocalWords = !!localStorage.getItem('termo_db_words');
 
   if (lastSync !== today || !hasLocalWords) {
@@ -274,7 +274,7 @@ export async function syncSupabaseData() {
       const mode4 = row.mode_4_attempts ? { score: row.mode_4_score, time: row.mode_4_time, attempts: row.mode_4_attempts, success: row.mode_4_score >= 180, wordsSolved: row.mode_4_score > 0 ? 4 : 0 } : null;
       return {
         playerName,
-        date: String(row.date),
+        date: normalizeDateString(row.date),
         mode1,
         mode2,
         mode4,
@@ -289,7 +289,7 @@ export async function syncSupabaseData() {
     console.error("Erro ao carregar versus_results do Supabase:", versusError);
   } else if (versus) {
     localStorage.setItem('termo_versus_results', JSON.stringify(versus.map((row: any) => ({
-      date: String(row.date),
+      date: normalizeDateString(row.date),
       gabrielTermo: row.gabriel_termo_score || 0,
       gabrielDueto: row.gabriel_dueto_score || 0,
       gabrielQuarteto: row.gabriel_quarteto_score || 0,
@@ -383,6 +383,32 @@ export function getTodayDateString(): string {
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+export function normalizeDateString(value: string | Date | null | undefined): string {
+  if (!value) return '';
+  if (value instanceof Date) {
+    const year = value.getUTCFullYear();
+    const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(value.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  const trimmed = String(value).trim();
+  const isoDateOnlyMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoDateOnlyMatch) {
+    return isoDateOnlyMatch[1];
+  }
+
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    const year = parsed.getUTCFullYear();
+    const month = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  return trimmed;
 }
 
 // Get challenge for date
@@ -825,18 +851,23 @@ export interface VersusResult {
 
 export function getVersusMatchForDate(dateStr: string): VersusResult | null {
   initLocalStorage();
+  const normalizedDate = normalizeDateString(dateStr);
   const list: VersusResult[] = JSON.parse(localStorage.getItem('termo_versus_results') || '[]');
-  return list.find(v => v.date === dateStr) || null;
+  return list.find(v => normalizeDateString(v.date) === normalizedDate) || null;
 }
 
 export function saveVersusMatch(match: VersusResult) {
   initLocalStorage();
+  const normalizedMatch: VersusResult = {
+    ...match,
+    date: normalizeDateString(match.date)
+  };
   const list: VersusResult[] = JSON.parse(localStorage.getItem('termo_versus_results') || '[]');
-  const existingIndex = list.findIndex(v => v.date === match.date);
+  const existingIndex = list.findIndex(v => normalizeDateString(v.date) === normalizedMatch.date);
   if (existingIndex !== -1) {
-    list[existingIndex] = match;
+    list[existingIndex] = normalizedMatch;
   } else {
-    list.push(match);
+    list.push(normalizedMatch);
   }
   localStorage.setItem('termo_versus_results', JSON.stringify(list));
 
@@ -870,7 +901,9 @@ export function saveVersusMatch(match: VersusResult) {
 export function getVersusHistory(): VersusResult[] {
   initLocalStorage();
   const list: VersusResult[] = JSON.parse(localStorage.getItem('termo_versus_results') || '[]');
-  return list.sort((a, b) => b.date.localeCompare(a.date));
+  return list
+    .map(v => ({ ...v, date: normalizeDateString(v.date) }))
+    .sort((a, b) => b.date.localeCompare(a.date));
 }
 
 export interface BlitzMatch {
