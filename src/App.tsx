@@ -88,6 +88,9 @@ export default function App() {
   const [playerStats, setPlayerStats] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
+  // State for countdown until next day
+  const [timeUntilMidnight, setTimeUntilMidnight] = useState<string>('');
+
   // Versus States
   const [versusInviteVisible, setVersusInviteVisible] = useState<boolean>(false);
   const [versusMatchToday, setVersusMatchToday] = useState<VersusResult | null>(null);
@@ -195,6 +198,29 @@ export default function App() {
     }, 5000);
 
     return () => clearTimeout(inviteTimer);
+  }, [view]);
+
+  // Ticker for countdown until next day
+  useEffect(() => {
+    if (view !== 'dashboard') return;
+
+    const updateTimer = () => {
+      const now = new Date();
+      const midnight = new Date();
+      midnight.setHours(24, 0, 0, 0);
+      const diffMs = midnight.getTime() - now.getTime();
+      
+      const hours = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
+      const minutes = Math.max(0, Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)));
+      const seconds = Math.max(0, Math.floor((diffMs % (1000 * 60)) / 1000));
+      
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      setTimeUntilMidnight(`${pad(hours)}:${pad(minutes)}:${pad(seconds)}`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
   }, [view]);
 
 
@@ -1750,7 +1776,7 @@ export default function App() {
                 disabled={!!versusMatchToday}
                 onClick={startVersusFlow}
               >
-                {versusMatchToday ? 'Duelo Concluído' : 'Iniciar Versus'}
+                {versusMatchToday ? `⏱️ Próximo em ${timeUntilMidnight}` : 'Iniciar Versus'}
               </button>
             </div>
           )}
@@ -1778,7 +1804,7 @@ export default function App() {
                   </div>
                 )}
                 <button className="challenge-btn" disabled={!!bombResultToday} onClick={handleStartBomb}>
-                  {bombResultToday ? 'Concluído' : <><Bomb size={16} /> Jogar Bomba</>}
+                  {bombResultToday ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Bomb size={16} /> Jogar Bomba</>}
                 </button>
               </div>
 
@@ -1802,7 +1828,7 @@ export default function App() {
                   </div>
                 )}
                 <button className="challenge-btn" disabled={!!crosswordResultToday} onClick={handleStartCrossword}>
-                  {crosswordResultToday ? 'Concluído' : <><Grid3X3 size={16} /> Abrir Grade</>}
+                  {crosswordResultToday ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Grid3X3 size={16} /> Abrir Grade</>}
                 </button>
               </div>
             </div>
@@ -1917,7 +1943,7 @@ export default function App() {
                     disabled={!!todayResult?.mode1}
                     onClick={() => handleStartGame(1)}
                   >
-                    {todayResult?.mode1 ? 'Concluído' : <><Play size={16} fill="white" /> Jogar</>}
+                    {todayResult?.mode1 ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Play size={16} fill="white" /> Jogar</>}
                   </button>
                 </div>
 
@@ -1954,7 +1980,7 @@ export default function App() {
                     disabled={!!todayResult?.mode2}
                     onClick={() => handleStartGame(2)}
                   >
-                    {todayResult?.mode2 ? 'Concluído' : <><Play size={16} fill="white" /> Jogar</>}
+                    {todayResult?.mode2 ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Play size={16} fill="white" /> Jogar</>}
                   </button>
                 </div>
 
@@ -1991,7 +2017,7 @@ export default function App() {
                     disabled={!!todayResult?.mode4}
                     onClick={() => handleStartGame(4)}
                   >
-                    {todayResult?.mode4 ? 'Concluído' : <><Play size={16} fill="white" /> Jogar</>}
+                    {todayResult?.mode4 ? `⏱️ Próximo em ${timeUntilMidnight}` : <><Play size={16} fill="white" /> Jogar</>}
                   </button>
                 </div>
 
