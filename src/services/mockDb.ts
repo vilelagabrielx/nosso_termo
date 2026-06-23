@@ -156,19 +156,25 @@ async function selectSupabaseWords(length?: number, count: number = 100, seed: n
   return [];
 }
 
-async function selectVaryingWords(count: number, baseSeed: number): Promise<string[]> {
-  const selectedWords: string[] = [];
+async function selectVaryingWords(count: number, baseSeed: number, excludeList: string[] = []): Promise<string[]> {
+  const selectedWords: string[] = [...excludeList];
+  const results: string[] = [];
   for (let i = 0; i < count; i++) {
     const len = 4 + ((baseSeed + i) % 3); // 4, 5, or 6 letras
-    const candidates = await selectSupabaseWords(len, 10, baseSeed + i * 10);
+    const candidates = await selectSupabaseWords(len, 20, baseSeed + i * 10);
     const chosen = candidates.find(c => c.word && !selectedWords.includes(c.word))?.word;
     if (chosen) {
       selectedWords.push(chosen);
-    } else if (candidates[0]?.word) {
-      selectedWords.push(candidates[0].word);
+      results.push(chosen);
+    } else {
+      const fallback = candidates.find(c => c.word && !selectedWords.includes(c.word))?.word || candidates[0]?.word;
+      if (fallback) {
+        selectedWords.push(fallback);
+        results.push(fallback);
+      }
     }
   }
-  return selectedWords;
+  return results;
 }
 
 async function syncSupabaseWordsCache() {
@@ -400,8 +406,8 @@ export async function getChallengeForDate(dateStr: string): Promise<Challenge> {
   const len1 = 4 + (seed % 3); // 4, 5, 6 letras
 
   const mode1 = (await selectSupabaseWords(len1, 1, seed))[0]?.word;
-  const mode2 = await selectVaryingWords(2, seed + 1);
-  const mode4 = await selectVaryingWords(4, seed + 2);
+  const mode2 = await selectVaryingWords(2, seed + 1, [mode1]);
+  const mode4 = await selectVaryingWords(4, seed + 2, [mode1, ...mode2]);
 
   if (!mode1 || mode2.length < 2 || mode4.length < 4) {
     throw new Error('A tabela palavras no Supabase não tem palavras suficientes para montar o desafio de hoje.');
@@ -1150,9 +1156,37 @@ export async function getVersusWordsForDate(dateStr: string): Promise<DailyWords
   const len2 = 4 + ((seed + 1) % 4); // 4, 5, 6, 7
   const len4 = 5 + ((seed + 2) % 3); // 5, 6, 7
 
-  const mode1 = (await selectSupabaseWords(len1, 1, seed))[0]?.word;
-  const mode2 = (await selectSupabaseWords(len2, 2, seed + 1)).map(item => item.word);
-  const mode4 = (await selectSupabaseWords(len4, 4, seed + 2)).map(item => item.word);
+  const usedWords = new Set<string>();
+
+  const candidates1 = await selectSupabaseWords(len1, 10, seed);
+  const mode1 = candidates1.find(c => !usedWords.has(c.word))?.word || candidates1[0]?.word;
+  usedWords.add(mode1);
+
+  const candidates2 = await selectSupabaseWords(len2, 10, seed + 1);
+  const mode2: string[] = [];
+  candidates2.forEach(c => {
+    if (mode2.length < 2 && !usedWords.has(c.word)) {
+      mode2.push(c.word);
+      usedWords.add(c.word);
+    }
+  });
+  while (mode2.length < 2) {
+    const fallback = candidates2.find(c => !mode2.includes(c.word))?.word || candidates2[0]?.word;
+    mode2.push(fallback);
+  }
+
+  const candidates4 = await selectSupabaseWords(len4, 10, seed + 2);
+  const mode4: string[] = [];
+  candidates4.forEach(c => {
+    if (mode4.length < 4 && !usedWords.has(c.word)) {
+      mode4.push(c.word);
+      usedWords.add(c.word);
+    }
+  });
+  while (mode4.length < 4) {
+    const fallback = candidates4.find(c => !mode4.includes(c.word))?.word || candidates4[0]?.word;
+    mode4.push(fallback);
+  }
 
   if (!mode1 || mode2.length < 2 || mode4.length < 4) {
     throw new Error('A tabela palavras no Supabase não tem palavras suficientes para o Versus.');
