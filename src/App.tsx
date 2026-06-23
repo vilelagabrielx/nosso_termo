@@ -2830,6 +2830,35 @@ export default function App() {
             </p>
           </div>
 
+          {/* Quick Versus Explainer - Shown only under Ambos */}
+          {activePlayer === 'Ambos' && (
+            <div className="versus-explainer-card">
+              <div className="versus-explainer-content">
+                <h3 className="versus-explainer-title">
+                  ⚔️ Modo Versus Competitivo Disponível
+                </h3>
+                <p className="versus-explainer-desc">
+                  Sabia que todos os 6 modos (Termo, Dueto, Quarteto, Bomba, Cruzadas e Blitz) têm versão **Versus**? 
+                  Mude o perfil ativo no topo para **Gabriel** ou **Alessandra** para liberar os duelos e ver as pontuações e histórico!
+                </p>
+              </div>
+              <div className="versus-explainer-actions">
+                <button 
+                  className="versus-explainer-btn-gabriel"
+                  onClick={() => handlePlayerChange('Gabriel')}
+                >
+                  🧔 Perfil Gabriel
+                </button>
+                <button 
+                  className="versus-explainer-btn-alessandra"
+                  onClick={() => handlePlayerChange('Alessandra')}
+                >
+                  👩 Perfil Alessandra
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Modo Versus Duel card - Hidden under Ambos */}
           {activePlayer !== 'Ambos' && (
             <div className="versus-summary-card">
@@ -2888,7 +2917,12 @@ export default function App() {
           <div className="special-modes-grid">
             <div className="challenge-card mode-bomb">
               <div className="challenge-header">
-                <div className="challenge-badge">{activePlayer === 'Ambos' ? 'Bomba' : '⚔️ Bomba Versus'}</div>
+                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                  <div className="challenge-badge">{activePlayer === 'Ambos' ? 'Bomba' : '⚔️ Bomba Versus'}</div>
+                  {activePlayer === 'Ambos' && (
+                    <span className="versus-indicator-badge" title="Disponível no Modo Versus">⚔️ Versus</span>
+                  )}
+                </div>
                 <div className="challenge-status-indicator">
                   {activePlayer === 'Ambos'
                     ? (bombResultToday ? '✅' : '❌')
@@ -2938,7 +2972,12 @@ export default function App() {
 
             <div className="challenge-card mode-crossword">
               <div className="challenge-header">
-                <div className="challenge-badge">{activePlayer === 'Ambos' ? 'Cruzadas IA' : '⚔️ Cruzadas Versus'}</div>
+                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                  <div className="challenge-badge">{activePlayer === 'Ambos' ? 'Cruzadas IA' : '⚔️ Cruzadas Versus'}</div>
+                  {activePlayer === 'Ambos' && (
+                    <span className="versus-indicator-badge" title="Disponível no Modo Versus">⚔️ Versus</span>
+                  )}
+                </div>
                 <div className="challenge-status-indicator">
                   {activePlayer === 'Ambos'
                     ? (crosswordResultToday ? '✅' : '❌')
@@ -3042,7 +3081,13 @@ export default function App() {
 
           {/* Modo Blitz Card */}
           <div className="dashboard-panel" style={{ marginBottom: '2.5rem', background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(236, 72, 153, 0.08))', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-            <h2 className="section-title"><Zap size={22} color="var(--color-present)" /> {activePlayer === 'Ambos' ? 'Modo Blitz Cooperativo' : '⚔️ Corrida Blitz Versus'}</h2>
+            <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <Zap size={22} color="var(--color-present)" /> 
+              <span>{activePlayer === 'Ambos' ? 'Modo Blitz Cooperativo' : '⚔️ Corrida Blitz Versus'}</span>
+              {activePlayer === 'Ambos' && (
+                <span className="versus-indicator-badge" title="Disponível no Modo Versus" style={{ transform: 'translateY(1px)' }}>⚔️ Versus</span>
+              )}
+            </h2>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', textAlign: 'left' }}>
               {activePlayer === 'Ambos'
                 ? 'Tentem adivinhar o maior número de palavras sequenciais antes do cronômetro zerar. O jogo passa para a próxima palavra instantaneamente.'
@@ -3155,7 +3200,10 @@ export default function App() {
                 {/* Mode 1 */}
                 <div className="challenge-card mode-1">
                   <div className="challenge-header">
-                    <div className="challenge-badge">Termo</div>
+                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                      <div className="challenge-badge">Termo</div>
+                      <span className="versus-indicator-badge" title="Disponível no Modo Versus">⚔️ Versus</span>
+                    </div>
                     <div className="challenge-status-indicator">
                       {todayResult?.mode1 ? '✅' : '❌'}
                     </div>
@@ -3192,7 +3240,10 @@ export default function App() {
                 {/* Mode 2 */}
                 <div className="challenge-card mode-2">
                   <div className="challenge-header">
-                    <div className="challenge-badge">Dueto</div>
+                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                      <div className="challenge-badge">Dueto</div>
+                      <span className="versus-indicator-badge" title="Disponível no Modo Versus">⚔️ Versus</span>
+                    </div>
                     <div className="challenge-status-indicator">
                       {todayResult?.mode2 ? '✅' : '❌'}
                     </div>
@@ -3244,7 +3295,10 @@ export default function App() {
                 {/* Mode 4 */}
                 <div className="challenge-card mode-4">
                   <div className="challenge-header">
-                    <div className="challenge-badge">Quarteto</div>
+                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                      <div className="challenge-badge">Quarteto</div>
+                      <span className="versus-indicator-badge" title="Disponível no Modo Versus">⚔️ Versus</span>
+                    </div>
                     <div className="challenge-status-indicator">
                       {todayResult?.mode4 ? '✅' : '❌'}
                     </div>
