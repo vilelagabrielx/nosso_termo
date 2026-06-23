@@ -71,7 +71,7 @@ export interface PlayerStats {
 
 
 
-const WORD_TABLE_CANDIDATES = ['palavras', 'words'];
+const WORD_TABLE_CANDIDATES = ['palavras'];
 
 function mapDbWord(row: any) {
   const rawWord = row.palavra || row.Word || row.word || row.termo || row.texto || '';
@@ -144,15 +144,66 @@ async function selectSupabaseWords(length?: number, count: number = 100, seed: n
       console.error('Error parsing local words cache:', e);
     }
   }
-
   return [];
 }
 
-async function syncSupabaseWordsCache() {
-  const words = await selectSupabaseWords(undefined, 2000);
-  if (words.length > 0) {
-    localStorage.setItem('termo_db_words', JSON.stringify(words));
+async function selectVaryingWords(count: number, baseSeed: number): Promise<string[]> {
+  const selectedWords: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const len = 4 + ((baseSeed + i) % 3); // 4, 5, or 6 letras
+    const candidates = await selectSupabaseWords(len, 10, baseSeed + i * 10);
+    const chosen = candidates.find(c => c.word && !selectedWords.includes(c.word))?.word;
+    if (chosen) {
+      selectedWords.push(chosen);
+    } else if (candidates[0]?.word) {
+      selectedWords.push(candidates[0].word);
+    }
   }
+  return selectedWords;
+}
+
+async function syncSupabaseWordsCache() {
+  const remoteWords = await selectSupabaseWords(undefined, 2000);
+  const localWordsStr = localStorage.getItem('termo_db_words');
+  let localWords: any[] = [];
+  if (localWordsStr) {
+    try {
+      localWords = JSON.parse(localWordsStr);
+    } catch (e) {
+      console.error('Error parsing local words cache:', e);
+    }
+  }
+
+  // If local words cache is empty, populate with initial fallback words
+  if (localWords.length === 0) {
+    let idCounter = 1;
+    Object.entries(FALLBACK_WORDS_BY_LENGTH).forEach(([lenStr, list]) => {
+      const len = parseInt(lenStr);
+      list.forEach(word => {
+        localWords.push({
+          id: `w-${idCounter++}`,
+          word: word.toUpperCase(),
+          length: len,
+          usedCount: 0,
+          lastUsedAt: null,
+          createdAt: new Date().toISOString(),
+          source: 'importação'
+        });
+      });
+    });
+  }
+
+  if (remoteWords.length > 0) {
+    // Merge remote words into local cache
+    const localWordTexts = new Set(localWords.map(w => w.word));
+    remoteWords.forEach((rw: any) => {
+      if (rw.word && !localWordTexts.has(rw.word)) {
+        localWords.push(rw);
+      }
+    });
+  }
+
+  localStorage.setItem('termo_db_words', JSON.stringify(localWords));
 }
 
 export async function syncSupabaseData() {
@@ -329,13 +380,11 @@ export async function getChallengeForDate(dateStr: string): Promise<Challenge> {
 
   // Select from Supabase table `palavras`.
   const seed = getSeedForDate(dateStr);
-  const len1 = 5 + (seed % 3); // 5, 6, 7
-  const len2 = 4 + ((seed + 1) % 4); // 4, 5, 6, 7
-  const len4 = 5 + ((seed + 2) % 3); // 5, 6, 7
+  const len1 = 4 + (seed % 3); // 4, 5, 6 letras
 
   const mode1 = (await selectSupabaseWords(len1, 1, seed))[0]?.word;
-  const mode2 = (await selectSupabaseWords(len2, 2, seed + 1)).map(item => item.word);
-  const mode4 = (await selectSupabaseWords(len4, 4, seed + 2)).map(item => item.word);
+  const mode2 = await selectVaryingWords(2, seed + 1);
+  const mode4 = await selectVaryingWords(4, seed + 2);
 
   if (!mode1 || mode2.length < 2 || mode4.length < 4) {
     throw new Error('A tabela palavras no Supabase não tem palavras suficientes para montar o desafio de hoje.');
@@ -1237,6 +1286,34 @@ export async function runWordGenJob(jobId: string) {
     });
     
     localStorage.setItem('termo_db_words', JSON.stringify(updatedDbWords));
+
+    // Upload generated words to Supabase 'palavras' table
+    try {
+      let startId = 1;
+      const { data: maxIdData } = await supabase.from('palavras').select('Id').order('Id', { ascending: false }).limit(1);
+      if (maxIdData && maxIdData[0]) {
+        startId = Number(maxIdData[0].Id) + 1;
+      }
+      
+      const wordsToInsert = newWordsList.map((word, idx) => ({
+        Id: startId + idx,
+        Word: word,
+        Length: word.length,
+        UsedCount: 0,
+        LastUsedAt: null,
+        CreatedAt: new Date().toISOString(),
+        Source: 'IA'
+      }));
+
+      const { error: insertErr } = await supabase.from('palavras').insert(wordsToInsert);
+      if (insertErr) {
+        console.error('Error inserting new generated words into Supabase:', insertErr);
+      } else {
+        console.log(`Successfully uploaded ${newWordsList.length} words to Supabase 'palavras' table.`);
+      }
+    } catch (supabaseErr) {
+      console.error('Failed to sync new generated words to Supabase:', supabaseErr);
+    }
     
     updateJobStatus('Completed', {
       finishedAt: new Date().toISOString(),

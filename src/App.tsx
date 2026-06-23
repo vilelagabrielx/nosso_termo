@@ -329,8 +329,34 @@ export default function App() {
     loadDashboardData(activePlayer);
   };
 
-  // Dynamic attempts bounds: Quantidade de letras + 1
-  const maxAttempts = targetWords[0] ? targetWords[0].length + 1 : 6;
+  // The guess size is the maximum length among all currently unsolved boards.
+  // If all boards are solved, it defaults to the length of the first word.
+  const getActiveGuessLen = () => {
+    if (!targetWords || targetWords.length === 0) return 5;
+    const unsolvedLengths = targetWords
+      .filter((_, idx) => !solvedBoards[idx])
+      .map(w => w.length);
+    if (unsolvedLengths.length === 0) {
+      return targetWords[0].length;
+    }
+    return Math.max(...unsolvedLengths);
+  };
+
+  const getWordsLengthsString = () => {
+    if (!targetWords || targetWords.length === 0) return '';
+    if (targetWords.length === 1) return `${targetWords[0].length} letras`;
+    
+    const lengths = targetWords.map(w => w.length);
+    if (targetWords.length === 2) {
+      return `${lengths[0]} e ${lengths[1]} letras`;
+    }
+    return `${lengths.slice(0, -1).join(', ')} e ${lengths[lengths.length - 1]} letras`;
+  };
+
+  // Dynamic attempts bounds: Quantidade de letras (tamanho máximo das palavras) + 1
+  const maxAttempts = targetWords.length > 0 
+    ? Math.max(...targetWords.map(w => w.length)) + 1 
+    : 6;
 
   // Initiate daily challenge mode
   const handleStartGame = (mode: 1 | 2 | 4) => {
@@ -461,10 +487,15 @@ export default function App() {
   const aggregatedLetterStatuses = () => {
     const statusMap: Record<string, 'correct' | 'present' | 'absent'> = {};
 
-    guesses.forEach((guess) => {
-      targetWords.forEach((target) => {
+    targetWords.forEach((target) => {
+      // Find the index of the guess that solved this board (if any)
+      const solvedIdx = guesses.findIndex(g => g.slice(0, target.length) === target);
+      // Only evaluate guesses up to the solving guess (inclusive)
+      const relevantGuesses = solvedIdx !== -1 ? guesses.slice(0, solvedIdx + 1) : guesses;
+
+      relevantGuesses.forEach((guess) => {
         const evaluation = getLetterStatuses(guess, target);
-        for (let i = 0; i < guess.length; i++) {
+        for (let i = 0; i < evaluation.length; i++) {
           const char = guess[i];
           const status = evaluation[i];
           const currentBest = statusMap[char];
@@ -485,7 +516,7 @@ export default function App() {
 
   // Keyboard action helpers
   const handleCharInput = (char: string) => {
-    const wordLen = targetWords[0]?.length || 5;
+    const wordLen = getActiveGuessLen();
     if (currentGuess.length < wordLen && guesses.length < maxAttempts && !showGameModal) {
       setCurrentGuess(prev => prev + char);
     }
@@ -498,7 +529,7 @@ export default function App() {
   };
 
   const handleEnterInput = () => {
-    const wordLen = targetWords[0]?.length || 5;
+    const wordLen = getActiveGuessLen();
     if (currentGuess.length < wordLen) {
       // Trigger shake animation
       setShakeRowIndex(guesses.length);
@@ -542,9 +573,9 @@ export default function App() {
       return;
     }
 
-    // Check newly solved boards
+    // Check newly solved boards (guesses are compared sliced to target word length)
     const nextSolved = targetWords.map((word) => {
-      return nextGuesses.includes(word);
+      return nextGuesses.some(guess => guess.slice(0, word.length) === word);
     });
     setSolvedBoards(nextSolved);
 
@@ -684,12 +715,6 @@ export default function App() {
   // Listen to physical keyboard events globally when playing
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (viewRef.current !== 'playing') return;
-      if (gameModeTypeRef.current === 'crossword') return;
-
-      // Ignore keyboard shortcuts using modifier keys (Ctrl, Alt, Command)
-      if (event.ctrlKey || event.metaKey || event.altKey) return;
-
       // Ignore key events when user is typing in form inputs/textarea
       const target = event.target as HTMLElement;
       if (
@@ -700,6 +725,14 @@ export default function App() {
       ) {
         return;
       }
+
+      console.log('Teclado físico detectado:', event.key, 'view:', viewRef.current, 'mode:', gameModeTypeRef.current);
+
+      if (viewRef.current !== 'playing') return;
+      if (gameModeTypeRef.current === 'crossword') return;
+
+      // Ignore keyboard shortcuts using modifier keys (Ctrl, Alt, Command)
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
 
       const key = event.key.toUpperCase();
 
@@ -1998,13 +2031,28 @@ export default function App() {
                     </div>
                   </div>
                   <h3 className="challenge-title">Dueto</h3>
-                  <p className="challenge-desc">Adivinhe duas palavras de {todayChallenge ? todayChallenge.words.mode2[0].length : '5'} letras simultaneamente em até {todayChallenge ? todayChallenge.words.mode2[0].length + 1 : 7} tentativas. Palpites valem para ambas.</p>
+                  <p className="challenge-desc">
+                    Adivinhe duas palavras de{' '}
+                    {todayChallenge 
+                      ? todayChallenge.words.mode2.map(w => w.length).join(' e ') 
+                      : 'tamanhos variados'}{' '}
+                    letras simultaneamente em até{' '}
+                    {todayChallenge 
+                      ? Math.max(...todayChallenge.words.mode2.map(w => w.length)) + 1 
+                      : 7}{' '}
+                    tentativas. Palpites valem para ambas.
+                  </p>
                   
                   {todayResult?.mode2 && (
                     <div className="challenge-stats">
                       <div className="challenge-stat-row">
                         <span className="challenge-stat-label">Tentativas:</span>
-                        <span className="challenge-stat-value">{todayResult.mode2.attempts}/{todayChallenge ? todayChallenge.words.mode2[0].length + 1 : 7}</span>
+                        <span className="challenge-stat-value">
+                          {todayResult.mode2.attempts}/
+                          {todayChallenge 
+                            ? Math.max(...todayChallenge.words.mode2.map(w => w.length)) + 1 
+                            : 7}
+                        </span>
                       </div>
                       <div className="challenge-stat-row">
                         <span className="challenge-stat-label">Tempo:</span>
@@ -2035,13 +2083,28 @@ export default function App() {
                     </div>
                   </div>
                   <h3 className="challenge-title">Quarteto</h3>
-                  <p className="challenge-desc">Adivinhe quatro palavras de {todayChallenge ? todayChallenge.words.mode4[0].length : '5'} letras simultaneamente em até {todayChallenge ? todayChallenge.words.mode4[0].length + 1 : 9} tentativas. O teste supremo.</p>
+                  <p className="challenge-desc">
+                    Adivinhe quatro palavras de{' '}
+                    {todayChallenge 
+                      ? todayChallenge.words.mode4.map(w => w.length).slice(0, -1).join(', ') + ' e ' + todayChallenge.words.mode4.slice(-1)[0].length
+                      : 'tamanhos variados'}{' '}
+                    letras simultaneamente em até{' '}
+                    {todayChallenge 
+                      ? Math.max(...todayChallenge.words.mode4.map(w => w.length)) + 1 
+                      : 9}{' '}
+                    tentativas. O teste supremo.
+                  </p>
                   
                   {todayResult?.mode4 && (
                     <div className="challenge-stats">
                       <div className="challenge-stat-row">
                         <span className="challenge-stat-label">Tentativas:</span>
-                        <span className="challenge-stat-value">{todayResult.mode4.attempts}/{todayChallenge ? todayChallenge.words.mode4[0].length + 1 : 9}</span>
+                        <span className="challenge-stat-value">
+                          {todayResult.mode4.attempts}/
+                          {todayChallenge 
+                            ? Math.max(...todayChallenge.words.mode4.map(w => w.length)) + 1 
+                            : 9}
+                        </span>
                       </div>
                       <div className="challenge-stat-row">
                         <span className="challenge-stat-label">Tempo:</span>
@@ -2299,9 +2362,9 @@ export default function App() {
                           ? 'Palavras Cruzadas'
                           : (activeMode === 1 ? 'Termo' : activeMode === 2 ? 'Dueto' : 'Quarteto')}
                   </span>
-                  {gameModeType !== 'crossword' && targetWords[0] && (
+                  {gameModeType !== 'crossword' && targetWords.length > 0 && (
                     <span className="word-len-badge">
-                      {targetWords[0].length} letras
+                      {getWordsLengthsString()}
                     </span>
                   )}
                 </h2>

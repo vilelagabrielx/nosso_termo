@@ -55,7 +55,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   // Find where each board was solved (index of first guess matching the word)
   const getSolvedIndex = (boardIndex: number): number | null => {
     const word = words[boardIndex];
-    const index = guesses.indexOf(word);
+    const index = guesses.findIndex(g => g.slice(0, word.length) === word);
     return index !== -1 ? index : null;
   };
 
@@ -72,7 +72,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             className={`board-card ${isSolved ? 'solved' : ''}`}
           >
             <div className="board-label">
-              {isSolved ? 'RESOLVIDO' : `PALAVRA ${boardIndex + 1}`}
+              {isSolved ? `RESOLVIDO • ${targetLen} letras` : `PALAVRA ${boardIndex + 1} • ${targetLen} letras`}
             </div>
 
             <div className="board-grid">
