@@ -87,7 +87,7 @@ function mapDbWord(row: any) {
   };
 }
 
-async function selectSupabaseWords(length?: number, count: number = 100): Promise<any[]> {
+async function selectSupabaseWords(length?: number, count: number = 100, seed: number = 0): Promise<any[]> {
   for (const table of WORD_TABLE_CANDIDATES) {
     const { data, error } = await supabase.from(table).select('*').limit(2000);
     if (!error && data) {
@@ -95,8 +95,53 @@ async function selectSupabaseWords(length?: number, count: number = 100): Promis
         .map(mapDbWord)
         .filter((item) => item.word && (!length || item.length === length));
       if (mapped.length > 0) {
+        // Ensure deterministic order by sorting alphabetically first
+        mapped.sort((a, b) => a.word.localeCompare(b.word));
+
+        if (seed > 0) {
+          const selected: any[] = [];
+          const tempMapped = [...mapped];
+          let currentSeed = seed;
+          for (let i = 0; i < count && tempMapped.length > 0; i++) {
+            const index = currentSeed % tempMapped.length;
+            selected.push(tempMapped[index]);
+            tempMapped.splice(index, 1); // remove to avoid duplicates
+            currentSeed = Math.floor((currentSeed * 1103515245 + 12345) / 65536) % 32768;
+          }
+          return selected;
+        }
+
         return mapped.slice(0, count);
       }
+    }
+  }
+
+  // Fallback to local storage cache if database query fails (e.g. offline)
+  const localWordsStr = localStorage.getItem('termo_db_words');
+  if (localWordsStr) {
+    try {
+      const localWords = JSON.parse(localWordsStr);
+      const filtered = localWords.filter((item: any) => item.word && (!length || item.length === length));
+      if (filtered.length > 0) {
+        filtered.sort((a: any, b: any) => a.word.localeCompare(b.word));
+
+        if (seed > 0) {
+          const selected: any[] = [];
+          const tempMapped = [...filtered];
+          let currentSeed = seed;
+          for (let i = 0; i < count && tempMapped.length > 0; i++) {
+            const index = currentSeed % tempMapped.length;
+            selected.push(tempMapped[index]);
+            tempMapped.splice(index, 1);
+            currentSeed = Math.floor((currentSeed * 1103515245 + 12345) / 65536) % 32768;
+          }
+          return selected;
+        }
+
+        return filtered.slice(0, count);
+      }
+    } catch (e) {
+      console.error('Error parsing local words cache:', e);
     }
   }
 
@@ -121,14 +166,29 @@ export async function syncSupabaseData() {
     .limit(30);
 
   if (challenges) {
-    localStorage.setItem('termo_challenges', JSON.stringify(challenges.map((row: any) => ({
+    const localChallenges: Challenge[] = JSON.parse(localStorage.getItem('termo_challenges') || '[]');
+    const remoteChallenges = challenges.map((row: any) => ({
       date: String(row.date),
       words: {
         mode1: normalizeWord(row.word_1 || row.mode1 || row.palavra_1 || ''),
         mode2: (row.words_2 || row.mode2 || row.palavras_2 || []).map(normalizeWord),
         mode4: (row.words_4 || row.mode4 || row.palavras_4 || []).map(normalizeWord)
       }
-    }))));
+    }));
+    
+    // Merge: prefer local challenge if it exists, otherwise add remote
+    const merged = [...localChallenges];
+    remoteChallenges.forEach(rc => {
+      const idx = merged.findIndex(lc => lc.date === rc.date);
+      if (idx === -1) {
+        merged.push(rc);
+      } else {
+        if (!merged[idx].words || !merged[idx].words.mode1) {
+          merged[idx] = rc;
+        }
+      }
+    });
+    localStorage.setItem('termo_challenges', JSON.stringify(merged));
   }
 
   const { data: results } = await supabase.from('results').select('*, profiles(name)').order('date', { ascending: false }).limit(100);
@@ -273,9 +333,9 @@ export async function getChallengeForDate(dateStr: string): Promise<Challenge> {
   const len2 = 4 + ((seed + 1) % 4); // 4, 5, 6, 7
   const len4 = 5 + ((seed + 2) % 3); // 5, 6, 7
 
-  const mode1 = (await selectSupabaseWords(len1, 1))[0]?.word;
-  const mode2 = (await selectSupabaseWords(len2, 2)).map(item => item.word);
-  const mode4 = (await selectSupabaseWords(len4, 4)).map(item => item.word);
+  const mode1 = (await selectSupabaseWords(len1, 1, seed))[0]?.word;
+  const mode2 = (await selectSupabaseWords(len2, 2, seed + 1)).map(item => item.word);
+  const mode4 = (await selectSupabaseWords(len4, 4, seed + 2)).map(item => item.word);
 
   if (!mode1 || mode2.length < 2 || mode4.length < 4) {
     throw new Error('A tabela palavras no Supabase não tem palavras suficientes para montar o desafio de hoje.');
@@ -881,7 +941,7 @@ export async function getBombWordForDate(dateStr: string): Promise<string> {
 
   const seed = getSeedForDate(dateStr + '_bomb');
   const length = 5 + (seed % 3);
-  const word = (await selectSupabaseWords(length, 1))[0]?.word;
+  const word = (await selectSupabaseWords(length, 1, seed))[0]?.word;
   if (!word) {
     throw new Error('A tabela palavras no Supabase não tem palavra suficiente para o Modo Bomba.');
   }
@@ -986,9 +1046,9 @@ export async function getVersusWordsForDate(dateStr: string): Promise<DailyWords
   const len2 = 4 + ((seed + 1) % 4); // 4, 5, 6, 7
   const len4 = 5 + ((seed + 2) % 3); // 5, 6, 7
 
-  const mode1 = (await selectSupabaseWords(len1, 1))[0]?.word;
-  const mode2 = (await selectSupabaseWords(len2, 2)).map(item => item.word);
-  const mode4 = (await selectSupabaseWords(len4, 4)).map(item => item.word);
+  const mode1 = (await selectSupabaseWords(len1, 1, seed))[0]?.word;
+  const mode2 = (await selectSupabaseWords(len2, 2, seed + 1)).map(item => item.word);
+  const mode4 = (await selectSupabaseWords(len4, 4, seed + 2)).map(item => item.word);
 
   if (!mode1 || mode2.length < 2 || mode4.length < 4) {
     throw new Error('A tabela palavras no Supabase não tem palavras suficientes para o Versus.');

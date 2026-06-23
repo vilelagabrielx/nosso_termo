@@ -197,6 +197,7 @@ export default function App() {
     return () => clearTimeout(inviteTimer);
   }, [view]);
 
+
   const loadDashboardData = async (playerName: 'Gabriel' | 'Alessandra' | 'Ambos') => {
     setLoading(true);
     try {
@@ -615,6 +616,43 @@ export default function App() {
       }
     }
   };
+
+  // Listen to physical keyboard events globally when playing
+  useEffect(() => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (view !== 'playing') return;
+      if (gameModeType === 'crossword') return;
+
+      // Ignore key events when user is typing in form inputs/textarea
+      const target = event.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      const key = event.key.toUpperCase();
+
+      if (key === 'ENTER') {
+        event.preventDefault();
+        handleEnterInput();
+      } else if (key === 'BACKSPACE') {
+        event.preventDefault();
+        handleDeleteInput();
+      } else if (/^[A-Z]$/.test(key)) {
+        event.preventDefault();
+        handleCharInput(key);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [view, gameModeType, handleCharInput, handleDeleteInput, handleEnterInput]);
 
   // Blitz: Go to next word instantly
   const moveToNextBlitzWord = async () => {
