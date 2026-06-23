@@ -39,6 +39,7 @@ import {
   type CrosswordChallenge
 } from './services/mockDb';
 import { GameBoard, getLetterStatuses } from './components/GameBoard';
+import { supabase } from './services/supabaseClient';
 import { Keyboard } from './components/Keyboard';
 import { Confetti } from './components/Confetti';
 import { 
@@ -99,6 +100,12 @@ export default function App() {
   const [versusWords, setVersusWords] = useState<any>(null);
   const [lobbyStep, setLobbyStep] = useState<'connecting' | 'ready' | 'countdown'>('connecting');
   const [countdownVal, setCountdownVal] = useState<number>(3);
+
+  // Multiplayer real-time states
+  const [multiplayerChannel, setMultiplayerChannel] = useState<any>(null);
+  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
+  const [waitingForOpponent, setWaitingForOpponent] = useState<boolean>(false);
+  const [versusOpponentType, setVersusOpponentType] = useState<'bot' | 'real'>('bot');
 
   // Blitz States
   const [blitzRecordsList, setBlitzRecordsList] = useState<BlitzRecord[]>([]);
@@ -189,16 +196,212 @@ export default function App() {
       loadDashboardData(current as 'Gabriel' | 'Alessandra' | 'Ambos');
     });
 
-    // Easter Egg: Trigger dynamic versus invitation after 5 seconds on dashboard if individual profile
-    const inviteTimer = setTimeout(() => {
-      const vMatch = getVersusMatchForDate(todayStr);
-      if (!vMatch && view === 'dashboard' && current !== 'Ambos') {
-        setVersusInviteVisible(true);
-      }
-    }, 5000);
-
-    return () => clearTimeout(inviteTimer);
+    // Easter Egg: Disabled auto-mock versus invite pop-up to allow pure real-time versus matches
   }, [view]);
+
+  const gabrielVersusScoresRef = useRef(gabrielVersusScores);
+  const alessandraVersusScoresRef = useRef(alessandraVersusScores);
+
+  useEffect(() => {
+    gabrielVersusScoresRef.current = gabrielVersusScores;
+  }, [gabrielVersusScores]);
+
+  useEffect(() => {
+    alessandraVersusScoresRef.current = alessandraVersusScores;
+  }, [alessandraVersusScores]);
+
+  // Supabase Realtime Lobby and Multiplayer Channel
+  useEffect(() => {
+    if (activePlayer === 'Ambos') {
+      return;
+    }
+
+    const opponent = activePlayer === 'Gabriel' ? 'Alessandra' : 'Gabriel';
+
+    const channel = supabase.channel('versus-lobby', {
+      config: {
+        presence: {
+          key: activePlayer,
+        },
+      },
+    });
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const users = Object.keys(state);
+        setOnlineUsers(users);
+      })
+      .on('broadcast', { event: 'invite' }, (payload) => {
+        const { from, to } = payload.payload;
+        if (to === activePlayer) {
+          // Received invite from 'from'
+          setVersusInviteVisible(true);
+        }
+      })
+      .on('broadcast', { event: 'accept' }, (payload) => {
+        const { from, to } = payload.payload;
+        if (to === activePlayer) {
+          // Opponent accepted invite!
+          setVersusOpponentType('real');
+          setWaitingForOpponent(false);
+          setLobbyStep('countdown');
+          setCountdownVal(3);
+          startCountdown();
+        }
+      })
+      .on('broadcast', { event: 'decline' }, (payload) => {
+        const { from, to } = payload.payload;
+        if (to === activePlayer) {
+          setWaitingForOpponent(false);
+          setVersusInviteVisible(false);
+          if (viewRef.current === 'lobby') {
+            alert(`${from} cancelou o convite.`);
+            setView('dashboard');
+          } else {
+            alert(`${from} recusou o seu convite.`);
+            setView('dashboard');
+          }
+        }
+      })
+      .on('broadcast', { event: 'game-update' }, (payload) => {
+        const { from, data } = payload.payload;
+        if (from === opponent) {
+          // Update local opponent scores first so they are correct in recap
+          if (opponent === 'Gabriel') {
+            setGabrielVersusScores(prev => {
+              const updated = { ...prev };
+              if (data.termoScore !== undefined) updated.termo = data.termoScore;
+              if (data.duetoScore !== undefined) updated.dueto = data.duetoScore;
+              if (data.quartetoScore !== undefined) updated.quarteto = data.quartetoScore;
+              updated.total = updated.termo + updated.dueto + updated.quarteto;
+
+              const aScores = alessandraVersusScoresRef.current;
+              if (data.completed || data.round === 4) {
+                const finalizedVersus: VersusResult = {
+                  date: todayStr,
+                  gabrielTermo: updated.termo,
+                  gabrielDueto: updated.dueto,
+                  gabrielQuarteto: updated.quarteto,
+                  gabrielTotal: updated.total,
+                  alessandraTermo: aScores.termo,
+                  alessandraDueto: aScores.dueto,
+                  alessandraQuarteto: aScores.quarteto,
+                  alessandraTotal: aScores.total,
+                  winner: updated.total > aScores.total ? 'Gabriel' : aScores.total > updated.total ? 'Alessandra' : 'Empate'
+                };
+                saveVersusMatch(finalizedVersus);
+                setVersusMatchToday(finalizedVersus);
+                setVersusHistory(getVersusHistory());
+              }
+              return updated;
+            });
+          } else {
+            setAlessandraVersusScores(prev => {
+              const updated = { ...prev };
+              if (data.termoScore !== undefined) updated.termo = data.termoScore;
+              if (data.duetoScore !== undefined) updated.dueto = data.duetoScore;
+              if (data.quartetoScore !== undefined) updated.quarteto = data.quartetoScore;
+              updated.total = updated.termo + updated.dueto + updated.quarteto;
+
+              const gScores = gabrielVersusScoresRef.current;
+              if (data.completed || data.round === 4) {
+                const finalizedVersus: VersusResult = {
+                  date: todayStr,
+                  gabrielTermo: gScores.termo,
+                  gabrielDueto: gScores.dueto,
+                  gabrielQuarteto: gScores.quarteto,
+                  gabrielTotal: gScores.total,
+                  alessandraTermo: updated.termo,
+                  alessandraDueto: updated.dueto,
+                  alessandraQuarteto: updated.quarteto,
+                  alessandraTotal: updated.total,
+                  winner: gScores.total > updated.total ? 'Gabriel' : updated.total > gScores.total ? 'Alessandra' : 'Empate'
+                };
+                saveVersusMatch(finalizedVersus);
+                setVersusMatchToday(finalizedVersus);
+                setVersusHistory(getVersusHistory());
+              }
+              return updated;
+            });
+          }
+
+          setOppState(prev => {
+            const nextTicker = [...prev.ticker];
+            if (data.tickerMessage && !nextTicker.includes(data.tickerMessage)) {
+              nextTicker.push(data.tickerMessage);
+            }
+            return {
+              ...prev,
+              round: data.round,
+              guessesCount: data.guessesCount,
+              wordsSolved: data.wordsSolved,
+              progress: data.progress,
+              completed: data.completed,
+              termoScore: data.termoScore !== undefined ? data.termoScore : prev.termoScore,
+              duetoScore: data.duetoScore !== undefined ? data.duetoScore : prev.duetoScore,
+              quartetoScore: data.quartetoScore !== undefined ? data.quartetoScore : prev.quartetoScore,
+              totalScore: data.totalScore !== undefined ? data.totalScore : prev.totalScore,
+              ticker: nextTicker,
+            };
+          });
+        }
+      });
+
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({ player: activePlayer, status: 'online' });
+      }
+    });
+
+    setMultiplayerChannel(channel);
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [activePlayer]);
+
+  // Helper to send game updates in real-time
+  const broadcastGameUpdate = (guessesCountVal?: number, wordsSolvedVal?: number, completedVal?: boolean, extraData = {}) => {
+    if (activePlayer === 'Ambos' || !multiplayerChannel) return;
+    
+    // Calculate progress (how many boards solved out of total)
+    const solvedCount = wordsSolvedVal !== undefined ? wordsSolvedVal : solvedBoards.filter(Boolean).length;
+    const guessesCount = guessesCountVal !== undefined ? guessesCountVal : guesses.length;
+    const progressPercent = Math.round((solvedCount / activeMode) * 100);
+    const completed = completedVal !== undefined ? completedVal : (solvedCount === activeMode);
+
+    const opponent = activePlayer === 'Gabriel' ? 'Alessandra' : 'Gabriel';
+
+    multiplayerChannel.send({
+      type: 'broadcast',
+      event: 'game-update',
+      payload: {
+        from: activePlayer,
+        to: opponent,
+        data: {
+          round: versusRound,
+          guessesCount: guessesCount,
+          wordsSolved: solvedCount,
+          progress: progressPercent,
+          completed: completed,
+          ...extraData
+        }
+      }
+    });
+  };
+
+  const startCountdown = () => {
+    let counter = 3;
+    const countInt = setInterval(() => {
+      counter--;
+      setCountdownVal(counter);
+      if (counter === 0) {
+        clearInterval(countInt);
+        launchVersusMatch();
+      }
+    }, 1000);
+  };
 
   // Ticker for countdown until next day
   useEffect(() => {
@@ -582,6 +785,29 @@ export default function App() {
     const allSolved = nextSolved.every(s => s === true);
     const runsOut = nextGuesses.length >= maxAttempts;
 
+    // Real-time intermediate progress updates for versus mode
+    if (gameModeType === 'versus' && versusOpponentType === 'real' && !(allSolved || runsOut)) {
+      const newlySolvedCount = nextSolved.filter(Boolean).length;
+      const prevSolvedCount = solvedBoards.filter(Boolean).length;
+      let tickerMsg = `${formatTickerTime(elapsedTime)} - ${activePlayer} enviou palpite (${nextGuesses.length}/${maxAttempts})`;
+      
+      if (newlySolvedCount > prevSolvedCount) {
+        const solvedIndex = nextSolved.findIndex((solved, idx) => solved && !solvedBoards[idx]);
+        if (solvedIndex !== -1) {
+          tickerMsg = `${formatTickerTime(elapsedTime)} - ${activePlayer} resolveu a Palavra ${solvedIndex + 1}!`;
+        }
+      }
+      
+      broadcastGameUpdate(
+        nextGuesses.length,
+        newlySolvedCount,
+        false,
+        {
+          tickerMessage: tickerMsg
+        }
+      );
+    }
+
     if (gameModeType !== 'blitz') {
       if (allSolved || runsOut) {
         // End daily/versus game
@@ -633,7 +859,41 @@ export default function App() {
           }
 
           if (oppIntervalRef.current) clearInterval(oppIntervalRef.current);
-          resolveRemainingOpponent(activeMode);
+          if (versusOpponentType === 'bot') {
+            resolveRemainingOpponent(activeMode);
+          }
+          
+          if (versusOpponentType === 'real') {
+            let tickerMsg = '';
+            if (success) {
+              tickerMsg = `${formatTickerTime(elapsedTime)} - 🎉 ${activePlayer} resolveu o ${activeMode === 1 ? 'Termo' : activeMode === 2 ? 'Dueto' : 'Quarteto'} em ${nextGuesses.length} palpites!`;
+            } else {
+              tickerMsg = `${formatTickerTime(elapsedTime)} - 🏁 ${activePlayer} encerrou a rodada sem resolver tudo.`;
+            }
+
+            const scoreUpdate: any = {};
+            if (activeMode === 1) scoreUpdate.termoScore = activeScore;
+            if (activeMode === 2) scoreUpdate.duetoScore = activeScore;
+            if (activeMode === 4) scoreUpdate.quartetoScore = activeScore;
+
+            const myScores = activePlayer === 'Gabriel' ? gabrielVersusScores : alessandraVersusScores;
+            const nextScores = { ...myScores };
+            if (activeMode === 1) nextScores.termo = activeScore;
+            if (activeMode === 2) nextScores.dueto = activeScore;
+            if (activeMode === 4) nextScores.quarteto = activeScore;
+            const newTotal = nextScores.termo + nextScores.dueto + nextScores.quarteto;
+
+            broadcastGameUpdate(
+              nextGuesses.length,
+              wordsSolved,
+              true,
+              {
+                tickerMessage: tickerMsg,
+                ...scoreUpdate,
+                totalScore: newTotal
+              }
+            );
+          }
           
           setModalSuccess(success);
           setModalScore(activeScore);
@@ -845,34 +1105,72 @@ export default function App() {
   // Versus Invite triggers
   const handleAcceptInvite = () => {
     setVersusInviteVisible(false);
-    startVersusFlow();
+    setVersusOpponentType('real');
+    if (multiplayerChannel) {
+      multiplayerChannel.send({
+        type: 'broadcast',
+        event: 'accept',
+        payload: { from: activePlayer, to: opponentName }
+      });
+    }
+    setLobbyStep('countdown');
+    setCountdownVal(3);
+    setView('lobby');
+    startCountdown();
   };
 
   const handleDeclineInvite = () => {
     setVersusInviteVisible(false);
+    if (multiplayerChannel) {
+      multiplayerChannel.send({
+        type: 'broadcast',
+        event: 'decline',
+        payload: { from: activePlayer, to: opponentName }
+      });
+    }
   };
 
   // Initiate Versus Lobby connection
   const startVersusFlow = () => {
     setView('lobby');
-    setLobbyStep('connecting');
     setCountdownVal(3);
 
-    setTimeout(() => {
-      setLobbyStep('ready');
+    const opponentOnline = onlineUsers.includes(opponentName);
+
+    if (opponentOnline && multiplayerChannel) {
+      // Online mode: Send invite and wait for opponent to accept
+      setVersusOpponentType('real');
+      setLobbyStep('connecting');
+      setWaitingForOpponent(true);
+      
+      multiplayerChannel.send({
+        type: 'broadcast',
+        event: 'invite',
+        payload: { from: activePlayer, to: opponentName }
+      });
+    } else {
+      // Offline mode (Bot simulation fallback)
+      setVersusOpponentType('bot');
+      setLobbyStep('connecting');
+      setWaitingForOpponent(false);
+      
+      // Simulate connecting to the bot/offline opponent after 1.5s
       setTimeout(() => {
-        setLobbyStep('countdown');
-        let counter = 3;
-        const countInt = setInterval(() => {
-          counter--;
-          setCountdownVal(counter);
-          if (counter === 0) {
-            clearInterval(countInt);
-            launchVersusMatch();
-          }
-        }, 1000);
+        setLobbyStep('ready');
+        setTimeout(() => {
+          setLobbyStep('countdown');
+          let counter = 3;
+          const countInt = setInterval(() => {
+            counter--;
+            setCountdownVal(counter);
+            if (counter === 0) {
+              clearInterval(countInt);
+              launchVersusMatch();
+            }
+          }, 1000);
+        }, 1500);
       }, 1500);
-    }, 1500);
+    }
   };
 
   // Generate Versus exclusive words
@@ -929,7 +1227,8 @@ export default function App() {
 
     // Opponent simulation interval
     if (oppIntervalRef.current) clearInterval(oppIntervalRef.current);
-    oppIntervalRef.current = setInterval(() => {
+    if (versusOpponentType === 'bot') {
+      oppIntervalRef.current = setInterval(() => {
       setOppState(prev => {
         const nextTime = prev.elapsedTime + 1;
         let nextGuessesCount = prev.guessesCount;
@@ -1067,6 +1366,18 @@ export default function App() {
         };
       });
     }, 1000);
+    }
+
+    if (versusOpponentType === 'real') {
+      broadcastGameUpdate(
+        0, // guessesCount
+        0, // wordsSolved
+        false, // completed
+        {
+          tickerMessage: `[0:00] - ${activePlayer} iniciou a rodada!`
+        }
+      );
+    }
   };
 
   const handleNextVersusRound = () => {
@@ -1670,20 +1981,55 @@ export default function App() {
         /* Connection Lounge screen */
         <div className="lobby-container">
           <div className="lobby-title">Lobby Versus</div>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>Conectando jogadores para o Duelo...</p>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
+            {versusOpponentType === 'real'
+              ? (waitingForOpponent ? `Aguardando ${opponentName} aceitar o convite...` : 'Duelo iniciando em breve!')
+              : 'Conectando oponente simulado para o Duelo...'}
+          </p>
           
           <div className="lobby-users">
+            {/* Player Row */}
             <div className="lobby-user-row">
-              <span>🧔 Gabriel</span>
+              <span>{activePlayer === 'Gabriel' ? '🧔 Gabriel' : '👩 Alessandra'}</span>
               <span className="lobby-user-status ready">Conectado ✓</span>
             </div>
+            
+            {/* Opponent Row */}
             <div className="lobby-user-row">
-              <span>👩 Alessandra</span>
-              <span className={`lobby-user-status ${lobbyStep === 'connecting' ? 'waiting' : 'ready'}`}>
-                {lobbyStep === 'connecting' ? 'Conectando...' : 'Conectado ✓'}
+              <span>{opponentName === 'Gabriel' ? '🧔 Gabriel' : '👩 Alessandra'}</span>
+              <span className={`lobby-user-status ${
+                versusOpponentType === 'real'
+                  ? (onlineUsers.includes(opponentName) ? (waitingForOpponent ? 'waiting' : 'ready') : 'waiting')
+                  : (lobbyStep === 'connecting' ? 'waiting' : 'ready')
+              }`}>
+                {versusOpponentType === 'real'
+                  ? (onlineUsers.includes(opponentName)
+                      ? (waitingForOpponent ? 'Aguardando aceite...' : 'Conectado ✓')
+                      : 'Offline ✗')
+                  : (lobbyStep === 'connecting' ? 'Conectando Robô...' : 'Conectado ✓')}
               </span>
             </div>
           </div>
+
+          {waitingForOpponent && (
+            <button 
+              className="versus-summary-btn" 
+              style={{ marginTop: '2rem', background: '#ef4444', border: 'none', boxShadow: 'none' }}
+              onClick={() => {
+                setWaitingForOpponent(false);
+                setView('dashboard');
+                if (multiplayerChannel) {
+                  multiplayerChannel.send({
+                    type: 'broadcast',
+                    event: 'decline',
+                    payload: { from: activePlayer, to: opponentName }
+                  });
+                }
+              }}
+            >
+              Cancelar Convite
+            </button>
+          )}
 
           {lobbyStep === 'countdown' && (
             <div className="countdown-overlay">
@@ -1839,7 +2185,22 @@ export default function App() {
           {activePlayer !== 'Ambos' && (
             <div className="versus-summary-card">
               <div className="versus-summary-info">
-                <div className="versus-summary-title">⚔️ Duelo do Dia (Modo Versus)</div>
+                <div className="versus-summary-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span>⚔️ Duelo do Dia (Modo Versus)</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.05)', padding: '0.2rem 0.5rem', borderRadius: '9999px', fontSize: '0.7rem' }}>
+                    <span style={{ 
+                      width: '6px', 
+                      height: '6px', 
+                      borderRadius: '50%', 
+                      backgroundColor: onlineUsers.includes(opponentName) ? '#10b981' : '#64748b',
+                      boxShadow: onlineUsers.includes(opponentName) ? '0 0 6px #10b981' : 'none',
+                      display: 'inline-block'
+                    }} />
+                    <span style={{ color: 'var(--text-secondary)' }}>
+                      {opponentName} está {onlineUsers.includes(opponentName) ? 'online' : 'offline'}
+                    </span>
+                  </div>
+                </div>
                 <div className="versus-summary-desc">
                   {versusMatchToday 
                     ? `Desafio Versus concluído hoje! Vencedor: ${versusMatchToday.winner === 'Empate' ? 'Empate 🤝' : '🏆 ' + versusMatchToday.winner}`
@@ -1851,7 +2212,7 @@ export default function App() {
                 disabled={!!versusMatchToday}
                 onClick={startVersusFlow}
               >
-                {versusMatchToday ? `⏱️ Próximo em ${timeUntilMidnight}` : 'Iniciar Versus'}
+                {versusMatchToday ? `⏱️ Próximo em ${timeUntilMidnight}` : (onlineUsers.includes(opponentName) ? 'Convidar Jogador ⚔️' : 'Jogar Contra Robô 🤖')}
               </button>
             </div>
           )}
