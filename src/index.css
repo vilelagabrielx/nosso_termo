@@ -78,6 +78,7 @@ header {
   letter-spacing: -0.05em;
   background: linear-gradient(135deg, var(--text-primary) 30%, var(--accent-cyan) 65%, var(--accent-purple) 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   display: flex;
   align-items: center;
@@ -1037,6 +1038,7 @@ header {
   font-weight: 800;
   background: linear-gradient(to right, #fbbf24, #f59e0b, #fb7185);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   margin-bottom: 0.5rem;
 }
@@ -1242,6 +1244,7 @@ header {
   margin-bottom: 1.5rem;
   background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 

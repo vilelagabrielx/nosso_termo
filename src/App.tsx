@@ -643,11 +643,52 @@ export default function App() {
     }
   };
 
+  // Keep state and handlers in refs to avoid rebuilding the keydown event listener unnecessarily
+  const viewRef = useRef(view);
+  const gameModeTypeRef = useRef(gameModeType);
+  const handleCharInputRef = useRef(handleCharInput);
+  const handleDeleteInputRef = useRef(handleDeleteInput);
+  const handleEnterInputRef = useRef(handleEnterInput);
+
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
+
+  useEffect(() => {
+    gameModeTypeRef.current = gameModeType;
+  }, [gameModeType]);
+
+  useEffect(() => {
+    handleCharInputRef.current = handleCharInput;
+  }, [handleCharInput]);
+
+  useEffect(() => {
+    handleDeleteInputRef.current = handleDeleteInput;
+  }, [handleDeleteInput]);
+
+  useEffect(() => {
+    handleEnterInputRef.current = handleEnterInput;
+  }, [handleEnterInput]);
+
+  // Auto-focus document body when entering gameplay to capture physical keyboard inputs immediately
+  useEffect(() => {
+    if (view === 'playing') {
+      const timer = setTimeout(() => {
+        window.focus();
+        document.body.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [view]);
+
   // Listen to physical keyboard events globally when playing
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (view !== 'playing') return;
-      if (gameModeType === 'crossword') return;
+      if (viewRef.current !== 'playing') return;
+      if (gameModeTypeRef.current === 'crossword') return;
+
+      // Ignore keyboard shortcuts using modifier keys (Ctrl, Alt, Command)
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
 
       // Ignore key events when user is typing in form inputs/textarea
       const target = event.target as HTMLElement;
@@ -664,21 +705,22 @@ export default function App() {
 
       if (key === 'ENTER') {
         event.preventDefault();
-        handleEnterInput();
+        handleEnterInputRef.current();
       } else if (key === 'BACKSPACE') {
         event.preventDefault();
-        handleDeleteInput();
+        handleDeleteInputRef.current();
       } else if (/^[A-Z]$/.test(key)) {
         event.preventDefault();
-        handleCharInput(key);
+        handleCharInputRef.current(key);
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
+    // Listen on document level to ensure it captures events even if window loses focus state
+    document.addEventListener('keydown', handleKeyDown);
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [view, gameModeType, handleCharInput, handleDeleteInput, handleEnterInput]);
+  }, []);
 
   // Blitz: Go to next word instantly
   const moveToNextBlitzWord = async () => {
