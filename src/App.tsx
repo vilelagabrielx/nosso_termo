@@ -13,6 +13,7 @@ import {
   getPlayerStats,
   getVersusMatchForDate,
   saveVersusMatch,
+  deleteVersusMatch,
   getVersusHistory,
   getBlitzRecords,
   saveBlitzMatch,
@@ -112,6 +113,13 @@ export default function App() {
   const [versusHistory, setVersusHistory] = useState<VersusResult[]>([]);
   const [versusRound, setVersusRound] = useState<1 | 2 | 3>(1);
   const [versusWords, setVersusWords] = useState<any>(null);
+
+  // Abandon match states
+  const [abandonRequestModalVisible, setAbandonRequestModalVisible] = useState<boolean>(false);
+  const [waitingForAbandonResponse, setWaitingForAbandonResponse] = useState<boolean>(false);
+  const [abandonRequestFrom, setAbandonRequestFrom] = useState<string | null>(null);
+  const [botAbandonModalVisible, setBotAbandonModalVisible] = useState<boolean>(false);
+
   // Rules modal state
   const [rulesModalVisible, setRulesModalVisible] = useState<boolean>(false);
   const [rulesModalTitle, setRulesModalTitle] = useState<string>('');
@@ -435,6 +443,95 @@ export default function App() {
             alert(`${from} recusou o seu convite.`);
             setView('dashboard');
           }
+        }
+      })
+      .on('broadcast', { event: 'abandon-request' }, (payload) => {
+        const { from, to } = payload.payload;
+        if (to === activePlayer) {
+          setAbandonRequestFrom(from);
+          setAbandonRequestModalVisible(true);
+        }
+      })
+      .on('broadcast', { event: 'abandon-accept' }, async (payload) => {
+        const { to } = payload.payload;
+        if (to === activePlayer) {
+          setWaitingForAbandonResponse(false);
+          setAbandonRequestModalVisible(false);
+          await deleteVersusMatch(todayStr);
+          await loadDashboardData(activePlayer);
+          setView('dashboard');
+          alert("O oponente aceitou o abandono da partida. O duelo do dia foi reiniciado!");
+        }
+      })
+      .on('broadcast', { event: 'abandon-decline' }, async (payload) => {
+        const { to } = payload.payload;
+        if (to === activePlayer) {
+          setWaitingForAbandonResponse(false);
+          setAbandonRequestModalVisible(false);
+          
+          const winnerPlayer = activePlayer === 'Gabriel' ? 'Alessandra' : 'Gabriel';
+          const gScores = { ...gabrielVersusScoresRef.current };
+          const aScores = { ...alessandraVersusScoresRef.current };
+          
+          const finalGQuarteto = gScores.quarteto > 0 ? gScores.quarteto : 1;
+          const finalAQuarteto = aScores.quarteto > 0 ? aScores.quarteto : 1;
+          
+          let finalGTotal = gScores.total;
+          let finalATotal = aScores.total;
+          if (winnerPlayer === 'Gabriel' && finalGTotal <= finalATotal) {
+            finalGTotal = finalATotal + 1;
+          } else if (winnerPlayer === 'Alessandra' && finalATotal <= finalGTotal) {
+            finalATotal = finalGTotal + 1;
+          }
+          
+          const finalizedVersus: VersusResult = {
+            date: todayStr,
+            gabrielTermo: gScores.termo,
+            gabrielDueto: gScores.dueto,
+            gabrielQuarteto: finalGQuarteto,
+            gabrielBomb: gScores.bomb || 0,
+            gabrielCrossword: gScores.crossword || 0,
+            gabrielBlitz: gScores.blitz || 0,
+            gabrielAfogado: gScores.afogado || 0,
+            gabrielTotal: finalGTotal,
+            alessandraTermo: aScores.termo,
+            alessandraDueto: aScores.dueto,
+            alessandraQuarteto: finalAQuarteto,
+            alessandraBomb: aScores.bomb || 0,
+            alessandraCrossword: aScores.crossword || 0,
+            alessandraBlitz: aScores.blitz || 0,
+            alessandraAfogado: aScores.afogado || 0,
+            alessandraTotal: finalATotal,
+            winner: winnerPlayer
+          };
+          
+          saveVersusMatch(finalizedVersus);
+          setVersusMatchToday(finalizedVersus);
+          setVersusHistory(getVersusHistory());
+          
+          setGabrielVersusScores({
+            termo: finalizedVersus.gabrielTermo,
+            dueto: finalizedVersus.gabrielDueto,
+            quarteto: finalizedVersus.gabrielQuarteto,
+            bomb: finalizedVersus.gabrielBomb || 0,
+            crossword: finalizedVersus.gabrielCrossword || 0,
+            blitz: finalizedVersus.gabrielBlitz || 0,
+            afogado: finalizedVersus.gabrielAfogado || 0,
+            total: finalizedVersus.gabrielTotal
+          });
+          setAlessandraVersusScores({
+            termo: finalizedVersus.alessandraTermo,
+            dueto: finalizedVersus.alessandraDueto,
+            quarteto: finalizedVersus.alessandraQuarteto,
+            bomb: finalizedVersus.alessandraBomb || 0,
+            crossword: finalizedVersus.alessandraCrossword || 0,
+            blitz: finalizedVersus.alessandraBlitz || 0,
+            afogado: finalizedVersus.alessandraAfogado || 0,
+            total: finalizedVersus.alessandraTotal
+          });
+          
+          setView('versus-end');
+          alert("O oponente recusou o abandono e venceu a partida!");
         }
       })
       .on('broadcast', { event: 'game-update' }, (payload) => {
@@ -2066,6 +2163,206 @@ export default function App() {
     startVersusRound(startRound, vWords);
   };
 
+  // Abandon Match handlers
+  const handleAbandonClick = () => {
+    if (isTestMode) {
+      alert("No modo teste você pode simplesmente voltar ao dashboard sem registrar resultados!");
+      handleBackToDashboard();
+      return;
+    }
+    if (versusOpponentType === 'bot') {
+      setBotAbandonModalVisible(true);
+    } else {
+      if (!multiplayerChannel) {
+        alert("Erro de conexão multiplayer. Não foi possível solicitar o abandono.");
+        return;
+      }
+      const opponent = activePlayer === 'Gabriel' ? 'Alessandra' : 'Gabriel';
+      setWaitingForAbandonResponse(true);
+      multiplayerChannel.send({
+        type: 'broadcast',
+        event: 'abandon-request',
+        payload: {
+          from: activePlayer,
+          to: opponent
+        }
+      });
+    }
+  };
+
+  const handleAcceptAbandon = async () => {
+    setAbandonRequestModalVisible(false);
+    if (versusOpponentType === 'real' && multiplayerChannel) {
+      const opponent = activePlayer === 'Gabriel' ? 'Alessandra' : 'Gabriel';
+      multiplayerChannel.send({
+        type: 'broadcast',
+        event: 'abandon-accept',
+        payload: {
+          from: activePlayer,
+          to: opponent
+        }
+      });
+    }
+    await deleteVersusMatch(todayStr);
+    await loadDashboardData(activePlayer);
+    setView('dashboard');
+    alert("Duelo abandonado em comum acordo. O duelo de hoje foi reiniciado!");
+  };
+
+  const handleDeclineAbandon = async () => {
+    setAbandonRequestModalVisible(false);
+    if (versusOpponentType === 'real' && multiplayerChannel) {
+      const opponent = activePlayer === 'Gabriel' ? 'Alessandra' : 'Gabriel';
+      multiplayerChannel.send({
+        type: 'broadcast',
+        event: 'abandon-decline',
+        payload: {
+          from: activePlayer,
+          to: opponent
+        }
+      });
+    }
+    
+    const winnerPlayer: 'Gabriel' | 'Alessandra' | 'Empate' = activePlayer === 'Gabriel' ? 'Gabriel' : 'Alessandra';
+    const gScores = { ...gabrielVersusScoresRef.current };
+    const aScores = { ...alessandraVersusScoresRef.current };
+    
+    const finalGQuarteto = gScores.quarteto > 0 ? gScores.quarteto : 1;
+    const finalAQuarteto = aScores.quarteto > 0 ? aScores.quarteto : 1;
+    
+    let finalGTotal = gScores.total;
+    let finalATotal = aScores.total;
+    if (winnerPlayer === 'Gabriel' && finalGTotal <= finalATotal) {
+      finalGTotal = finalATotal + 1;
+    } else if (winnerPlayer === 'Alessandra' && finalATotal <= finalGTotal) {
+      finalATotal = finalGTotal + 1;
+    }
+    
+    const finalizedVersus: VersusResult = {
+      date: todayStr,
+      gabrielTermo: gScores.termo,
+      gabrielDueto: gScores.dueto,
+      gabrielQuarteto: finalGQuarteto,
+      gabrielBomb: gScores.bomb || 0,
+      gabrielCrossword: gScores.crossword || 0,
+      gabrielBlitz: gScores.blitz || 0,
+      gabrielAfogado: gScores.afogado || 0,
+      gabrielTotal: finalGTotal,
+      alessandraTermo: aScores.termo,
+      alessandraDueto: aScores.dueto,
+      alessandraQuarteto: finalAQuarteto,
+      alessandraBomb: aScores.bomb || 0,
+      alessandraCrossword: aScores.crossword || 0,
+      alessandraBlitz: aScores.blitz || 0,
+      alessandraAfogado: aScores.afogado || 0,
+      alessandraTotal: finalATotal,
+      winner: winnerPlayer
+    };
+    
+    saveVersusMatch(finalizedVersus);
+    setVersusMatchToday(finalizedVersus);
+    setVersusHistory(getVersusHistory());
+    
+    setGabrielVersusScores({
+      termo: finalizedVersus.gabrielTermo,
+      dueto: finalizedVersus.gabrielDueto,
+      quarteto: finalizedVersus.gabrielQuarteto,
+      bomb: finalizedVersus.gabrielBomb || 0,
+      crossword: finalizedVersus.gabrielCrossword || 0,
+      blitz: finalizedVersus.gabrielBlitz || 0,
+      afogado: finalizedVersus.gabrielAfogado || 0,
+      total: finalizedVersus.gabrielTotal
+    });
+    setAlessandraVersusScores({
+      termo: finalizedVersus.alessandraTermo,
+      dueto: finalizedVersus.alessandraDueto,
+      quarteto: finalizedVersus.alessandraQuarteto,
+      bomb: finalizedVersus.alessandraBomb || 0,
+      crossword: finalizedVersus.alessandraCrossword || 0,
+      blitz: finalizedVersus.alessandraBlitz || 0,
+      afogado: finalizedVersus.alessandraAfogado || 0,
+      total: finalizedVersus.alessandraTotal
+    });
+    
+    setView('versus-end');
+    alert("Você recusou o abandono e venceu a partida!");
+  };
+
+  const handleBotAcceptAbandon = async () => {
+    setBotAbandonModalVisible(false);
+    await deleteVersusMatch(todayStr);
+    await loadDashboardData(activePlayer);
+    setView('dashboard');
+    alert("Duelo contra o Bot cancelado. Você pode jogar novamente!");
+  };
+
+  const handleBotDeclineAbandon = async () => {
+    setBotAbandonModalVisible(false);
+    const winnerPlayer = activePlayer === 'Gabriel' ? 'Alessandra' : 'Gabriel';
+    const gScores = { ...gabrielVersusScoresRef.current };
+    const aScores = { ...alessandraVersusScoresRef.current };
+    
+    const finalGQuarteto = gScores.quarteto > 0 ? gScores.quarteto : 1;
+    const finalAQuarteto = aScores.quarteto > 0 ? aScores.quarteto : 1;
+    
+    let finalGTotal = gScores.total;
+    let finalATotal = aScores.total;
+    if (winnerPlayer === 'Gabriel' && finalGTotal <= finalATotal) {
+      finalGTotal = finalATotal + 1;
+    } else if (winnerPlayer === 'Alessandra' && finalATotal <= finalGTotal) {
+      finalATotal = finalGTotal + 1;
+    }
+    
+    const finalizedVersus: VersusResult = {
+      date: todayStr,
+      gabrielTermo: gScores.termo,
+      gabrielDueto: gScores.dueto,
+      gabrielQuarteto: finalGQuarteto,
+      gabrielBomb: gScores.bomb || 0,
+      gabrielCrossword: gScores.crossword || 0,
+      gabrielBlitz: gScores.blitz || 0,
+      gabrielAfogado: gScores.afogado || 0,
+      gabrielTotal: finalGTotal,
+      alessandraTermo: aScores.termo,
+      alessandraDueto: aScores.dueto,
+      alessandraQuarteto: finalAQuarteto,
+      alessandraBomb: aScores.bomb || 0,
+      alessandraCrossword: aScores.crossword || 0,
+      alessandraBlitz: aScores.blitz || 0,
+      alessandraAfogado: aScores.afogado || 0,
+      alessandraTotal: finalATotal,
+      winner: winnerPlayer
+    };
+    
+    saveVersusMatch(finalizedVersus);
+    setVersusMatchToday(finalizedVersus);
+    setVersusHistory(getVersusHistory());
+    
+    setGabrielVersusScores({
+      termo: finalizedVersus.gabrielTermo,
+      dueto: finalizedVersus.gabrielDueto,
+      quarteto: finalizedVersus.gabrielQuarteto,
+      bomb: finalizedVersus.gabrielBomb || 0,
+      crossword: finalizedVersus.gabrielCrossword || 0,
+      blitz: finalizedVersus.gabrielBlitz || 0,
+      afogado: finalizedVersus.gabrielAfogado || 0,
+      total: finalizedVersus.gabrielTotal
+    });
+    setAlessandraVersusScores({
+      termo: finalizedVersus.alessandraTermo,
+      dueto: finalizedVersus.alessandraDueto,
+      quarteto: finalizedVersus.alessandraQuarteto,
+      bomb: finalizedVersus.alessandraBomb || 0,
+      crossword: finalizedVersus.alessandraCrossword || 0,
+      blitz: finalizedVersus.alessandraBlitz || 0,
+      afogado: finalizedVersus.alessandraAfogado || 0,
+      total: finalizedVersus.alessandraTotal
+    });
+    
+    setView('versus-end');
+    alert("Você desistiu do duelo. O Bot venceu!");
+  };
+
   const startVersusRound = (round: 1 | 2 | 3, wordsPack: any) => {
     let mode: 1 | 2 | 4 = 1;
     let targets: string[] = [];
@@ -3037,6 +3334,87 @@ export default function App() {
             <button className="invite-alert-btn decline" onClick={handleDeclineInvite}>
               Recusar
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Abandon request modals */}
+      {waitingForAbandonResponse && (
+        <div className="rules-modal-backdrop">
+          <div className="rules-modal" style={{ maxWidth: '400px', textAlign: 'center' }}>
+            <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>🏳️ Solicitando Abandono</h3>
+            <div style={{ marginTop: '1rem', color: 'var(--text-secondary)' }}>
+              Aguardando resposta de <strong>{opponentName}</strong>...
+            </div>
+            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center' }}>
+              <div className="game-timer" style={{ animation: 'pulse 1.5s infinite', border: 'none' }}>
+                Enviando sinal...
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {abandonRequestModalVisible && (
+        <div className="rules-modal-backdrop">
+          <div className="rules-modal" style={{ maxWidth: '500px' }}>
+            <h3 style={{ margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              🏳️ Solicitação de Abandono
+            </h3>
+            <div style={{ marginTop: '1rem', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
+              <strong>{abandonRequestFrom}</strong> quer abandonar a partida.
+              <br /><br />
+              Se você <strong>Concordar</strong>, o duelo de hoje será cancelado e ninguém pontuará (vocês poderão jogar novamente).
+              <br />
+              Se você <strong>Recusar</strong>, você vencerá a partida imediatamente e o duelo de hoje será finalizado/trancado.
+            </div>
+            <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              <button 
+                className="invite-alert-btn decline"
+                style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#f87171' }} 
+                onClick={handleAcceptAbandon}
+              >
+                🤝 Concordar (Reiniciar)
+              </button>
+              <button 
+                className="invite-alert-btn accept"
+                style={{ background: 'rgba(16, 185, 129, 0.2)', border: '1px solid rgba(16, 185, 129, 0.4)', color: '#34d399' }} 
+                onClick={handleDeclineAbandon}
+              >
+                ⚔️ Recusar (Vencer)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {botAbandonModalVisible && (
+        <div className="rules-modal-backdrop" onClick={() => setBotAbandonModalVisible(false)}>
+          <div className="rules-modal" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              🏳️ Abandonar Partida (vs Bot)
+            </h3>
+            <div style={{ marginTop: '1rem', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
+              Você está jogando contra o Bot. Escolha como deseja abandonar a partida:
+              <br /><br />
+              <strong>1. Cancelar Partida (Comum Acordo):</strong> O duelo de hoje contra o Bot é cancelado, ninguém pontua e você poderá jogar novamente.
+              <br />
+              <strong>2. Desistir (Vitória do Bot):</strong> O Bot vence a partida e o duelo de hoje é finalizado/trancado.
+            </div>
+            <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button 
+                className="invite-alert-btn decline"
+                onClick={handleBotAcceptAbandon}
+              >
+                🤝 Cancelar Partida (Jogar dnv)
+              </button>
+              <button 
+                className="invite-alert-btn accept"
+                onClick={handleBotDeclineAbandon}
+              >
+                🤖 Desistir (Bot Vence)
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -4428,6 +4806,11 @@ export default function App() {
               <button className="back-btn" onClick={handleBackToDashboard}>
                 <ArrowLeft size={18} />
               </button>
+              {gameModeType === 'versus' && (
+                <button className="abandon-btn" onClick={handleAbandonClick}>
+                  🏳️ Abandonar
+                </button>
+              )}
               <div className="game-title-info">
                 <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                   <span>

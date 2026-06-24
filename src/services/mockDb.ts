@@ -1825,4 +1825,19 @@ export async function getAfogadoWordForIndex(
   return word;
 }
 
+export async function deleteVersusMatch(dateStr: string) {
+  initLocalStorage();
+  const normalizedDate = normalizeDateString(dateStr);
+  const list: VersusResult[] = JSON.parse(localStorage.getItem('termo_versus_results') || '[]');
+  const filtered = list.filter(v => normalizeDateString(v.date) !== normalizedDate);
+  localStorage.setItem('termo_versus_results', JSON.stringify(filtered));
+
+  const { error } = await supabase.from('versus_results').delete().eq('date', normalizedDate);
+  if (error) {
+    console.error("Erro ao deletar Duelo Versus no Supabase:", error);
+  } else {
+    console.log("Duelo Versus deletado com sucesso do Supabase.");
+  }
+}
+
 
