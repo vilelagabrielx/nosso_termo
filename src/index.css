@@ -1053,12 +1053,17 @@ header {
 }
 
 .hidden-native-input {
-  position: absolute;
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 1px;
   height: 1px;
   opacity: 0;
   pointer-events: none;
-  transform: translateX(-9999px);
+  border: none;
+  margin: 0;
+  padding: 0;
+  z-index: -1000;
 }
 
 .versus-live-score {

@@ -1585,21 +1585,57 @@ export async function ensureWordsLoaded(length: number) {
   }
 
   try {
-    const { data, error } = await supabase
+    // 1. Get the total count of words for this length (enabled and disabled)
+    const { count, error: countError } = await supabase
       .from('palavras')
-      .select('Word')
-      .eq('Length', length)
-      .eq('Enabled', true);
+      .select('*', { count: 'exact', head: true })
+      .eq('Length', length);
+
+    if (countError) throw countError;
     
-    if (!error && data) {
-      data.forEach(row => {
-        if (row.Word) {
-          loadedWordsCache.add(row.Word.toLowerCase().trim());
-        }
-      });
+    if (count === null || count === 0) {
       loadedWordLengths.add(length);
-      console.log(`Loaded ${data.length} words of length ${length} into validation cache.`);
+      return;
     }
+
+    // 2. Fetch all words in parallel batches of 1000 to bypass default REST limit
+    const limit = 1000;
+    const numBatches = Math.ceil(count / limit);
+    const promises = [];
+
+    for (let page = 0; page < numBatches; page++) {
+      promises.push(
+        supabase
+          .from('palavras')
+          .select('Word')
+          .eq('Length', length)
+          .range(page * limit, (page + 1) * limit - 1)
+      );
+    }
+
+    const results = await Promise.all(promises);
+    
+    let loadedCount = 0;
+    results.forEach(({ data, error }) => {
+      if (error) throw error;
+      if (data) {
+        data.forEach(row => {
+          if (row.Word) {
+            const norm = row.Word
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .toLowerCase()
+              .replace(/[^a-z]/g, '')
+              .trim();
+            loadedWordsCache.add(norm);
+            loadedCount++;
+          }
+        });
+      }
+    });
+
+    loadedWordLengths.add(length);
+    console.log(`Loaded ${loadedCount} words of length ${length} into validation cache.`);
   } catch (err) {
     console.error("Error loading words of length " + length, err);
   }
@@ -1631,7 +1667,15 @@ export function validateWord(word: string, length: number, targets: string[] = [
     return { valid: true };
   }
 
-  // 3. Validação geral: aceita qualquer palavra válida
+  // 3. Strict lexicon validation if words are loaded
+  if (loadedWordLengths.has(length)) {
+    if (!loadedWordsCache.has(normalized)) {
+      return { valid: false, code: 'INVALID_WORD' };
+    }
+    return { valid: true };
+  }
+
+  // 4. Fallback validation (when not loaded/offline)
   const allSameChar = normalized.split('').every(ch => ch === normalized[0]);
   if (allSameChar) {
     return { valid: false, code: 'INVALID_WORD' };

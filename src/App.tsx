@@ -5041,17 +5041,25 @@ if (!oppTermo || oppTermo === 0) {
                   inputMode="text"
                   autoComplete="off"
                   autoCorrect="off"
-                  spellCheck="false"
+                  autoCapitalize="none"
+                  spellCheck={false}
                   value=" "
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      handleEnterInput();
+                    } else if (event.key === 'Backspace') {
+                      event.preventDefault();
+                      handleDeleteInput();
+                    }
+                  }}
                   onChange={(event: ChangeEvent<HTMLInputElement>) => {
                     const val = event.target.value;
                     if (val.length > 1) {
-                      const char = val.slice(-1).toUpperCase();
-                      if (/^[A-Z]$/.test(char)) {
+                      const newChars = val.slice(1).toUpperCase().replace(/[^A-Z]/g, '');
+                      for (const char of newChars) {
                         handleCharInput(char);
                       }
-                    } else if (val.length === 0) {
-                      handleDeleteInput();
                     }
                     event.target.value = " ";
                   }}
@@ -5134,11 +5142,6 @@ if (!oppTermo || oppTermo === 0) {
                           onChar={handleCharInput}
                           onDelete={handleDeleteInput}
                           onEnter={handleEnterInput}
-                          onBeginInput={() => {
-                            if (boardInputRef.current) {
-                              boardInputRef.current.focus();
-                            }
-                          }}
                           letterStatuses={aggregatedLetterStatuses()}
                         />
                       </div>
@@ -5238,11 +5241,6 @@ if (!oppTermo || oppTermo === 0) {
                       onChar={handleCharInput}
                       onDelete={handleDeleteInput}
                       onEnter={handleEnterInput}
-                      onBeginInput={() => {
-                        if (boardInputRef.current) {
-                          boardInputRef.current.focus();
-                        }
-                      }}
                       letterStatuses={aggregatedLetterStatuses()}
                     />
                   </>
