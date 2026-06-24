@@ -95,6 +95,9 @@ async function selectSupabaseWords(length?: number, count: number = 100, seed: n
     if (length !== undefined) {
       query = query.eq('Length', length);
     }
+    // Exclude raw dictionary sources (lexico and conjugações) from target word selection
+    query = query.neq('Source', 'lexico').neq('Source', 'conjugações');
+
     // Prioritize least used words (UsedCount ASC)
     query = query.order('UsedCount', { ascending: true }).order('Id', { ascending: true });
 
