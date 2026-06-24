@@ -1631,45 +1631,18 @@ export function validateWord(word: string, length: number, targets: string[] = [
     return { valid: true };
   }
 
-  // 3. Validação local (memória)
-  if (loadedWordsCache.has(normalized)) {
-    return { valid: true };
+  // 3. Validação geral: aceita qualquer palavra válida
+  const allSameChar = normalized.split('').every(ch => ch === normalized[0]);
+  if (allSameChar) {
+    return { valid: false, code: 'INVALID_WORD' };
   }
 
-  // 4. Fallback local cache
-  const localWordsStr = localStorage.getItem('termo_db_words');
-  if (localWordsStr) {
-    try {
-      const localWords = JSON.parse(localWordsStr);
-      const exists = localWords.some((w: any) => {
-        const normLocal = w.word
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .toLowerCase()
-          .replace(/[^a-z]/g, '')
-          .trim();
-        return normLocal === normalized && w.length === length && w.enabled !== false;
-      });
-      if (exists) return { valid: true };
-    } catch (e) {
-      console.error(e);
-    }
+  const vowelCount = (normalized.match(/[aeiou]/g) || []).length;
+  if (vowelCount === 0 || vowelCount === normalized.length) {
+    return { valid: false, code: 'INVALID_WORD' };
   }
 
-  // 5. Fallback hardcoded list
-  const fallbackList = FALLBACK_WORDS_BY_LENGTH[length] || [];
-  const normalizedFallbacks = fallbackList.map(w => 
-    w.normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .replace(/[^a-z]/g, '')
-      .trim()
-  );
-  if (normalizedFallbacks.includes(normalized)) {
-    return { valid: true };
-  }
-
-  return { valid: false, code: 'WORD_NOT_FOUND' };
+  return { valid: true };
 }
 
 export async function incrementWordUsage(word: string) {
