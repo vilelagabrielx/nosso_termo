@@ -167,7 +167,7 @@ Mode 4: quatro de ${len4} letras.`
 export async function generateWordsBatch(count: number, existingWordsSet: Set<string>): Promise<string[]> {
   const apiKey = getGroqApiKey();
   
-  const batchCount = Math.min(count, 50);
+  const batchCount = Math.min(count, 150);
   const sampleExisting = Array.from(existingWordsSet).slice(0, 30);
   
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -179,7 +179,7 @@ export async function generateWordsBatch(count: number, existingWordsSet: Set<st
     body: JSON.stringify({
       model: 'llama-3.1-8b-instant',
       temperature: 0.85,
-      max_tokens: 1000,
+      max_tokens: 2000,
       response_format: { type: "json_object" },
       messages: [
         {

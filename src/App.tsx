@@ -112,6 +112,80 @@ export default function App() {
   const [versusHistory, setVersusHistory] = useState<VersusResult[]>([]);
   const [versusRound, setVersusRound] = useState<1 | 2 | 3>(1);
   const [versusWords, setVersusWords] = useState<any>(null);
+  // Rules modal state
+  const [rulesModalVisible, setRulesModalVisible] = useState<boolean>(false);
+  const [rulesModalTitle, setRulesModalTitle] = useState<string>('');
+  const [rulesModalText, setRulesModalText] = useState<string>('');
+
+  const showRules = (key: string) => {
+    let title = '';
+    let text = '';
+    switch (key) {
+      case 'termo':
+        title = 'Regras — Termo';
+        text = 'Adivinhe a palavra do dia em até N tentativas. Cada letra do palpite recebe uma cor: verde = posição correta, amarelo = existe na palavra em outra posição, cinza = não existe. Pontos são calculados com base em acertos e velocidade.';
+        break;
+      case 'dueto':
+        title = 'Regras — Dueto';
+        text = 'Duas palavras são resolvidas ao mesmo tempo. Cada palpite é comparado com ambas as palavras e fornece feedback independente para cada uma. Utilize letras compartilhadas para otimizar palpites.';
+        break;
+      case 'quarteto':
+        title = 'Regras — Quarteto';
+        text = 'Quatro palavras alinhadas para um desafio avançado. Palpites aplicam-se a todas as palavras; a estratégia ideal explora letras que aparecem em várias palavras para reduzir tentativas.';
+        break;
+      case 'blitz':
+        title = 'Regras — Blitz';
+        text = 'Modo de tempo: durante X minutos adivinhe o maior número de palavras sequenciais. Cada acerto avança para a próxima palavra imediatamente; streaks rápidos aumentam o multiplicador de pontos.';
+        break;
+      case 'bomb':
+        title = 'Regras — Bomba';
+        text = 'A bomba tem uma carga que cresce com o tempo e com erros. Letras corretas reduzem a carga; erros a aumentam. Se a carga atingir 100% antes de desarmar a palavra, você perde a rodada.';
+        break;
+      case 'crossword':
+        title = 'Regras — Palavras Cruzadas';
+        text = 'Resolva a grade preenchendo palavras a partir das pistas dadas. Escolha a dificuldade antes de começar; níveis mais altos oferecem pistas mais enigmáticas e maior recompensa em pontos.';
+        break;
+      case 'afogado':
+        title = 'Regras — Afogado';
+        text = 'A água sobe continuamente; letras da palavra vão sendo reveladas ou consumidas. Acertos reduzem o nível d\'água temporariamente e aumentam sua pontuação. Sobreviva o máximo para ganhar mais pontos.';
+        break;
+      case 'versus':
+        title = 'Regras — Versus';
+        text = 'Modo competitivo em que cada jogador completa os modos diários (Termo, Dueto, Quarteto, etc.). Pontuações são comparadas e o jogador com mais pontos vence o duelo. Use o painel Versus para acompanhar o placar em tempo real.';
+        break;
+      default:
+        title = 'Regras';
+        text = 'Regras do jogo.';
+    }
+    setRulesModalTitle(title);
+    setRulesModalText(text);
+    setRulesModalVisible(true);
+  };
+
+  const closeRules = () => setRulesModalVisible(false);
+
+  // Keyboard shortcuts: '?' to open quick help, Esc to close
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      // Ignore when typing in inputs or textareas
+      const target = e.target as HTMLElement;
+      const tag = target && (target.tagName || '').toLowerCase();
+      const isEditable = target && (target.getAttribute && (target.getAttribute('contenteditable') === 'true'));
+      if (tag === 'input' || tag === 'textarea' || isEditable) return;
+
+      if (e.key === '?') {
+        e.preventDefault();
+        setRulesModalTitle('Ajuda rápida');
+        setRulesModalText('Pressione o botão "?" em qualquer cartão para ver as regras específicas daquele modo. Modos principais: Termo, Dueto, Quarteto, Blitz, Bomba, Palavras Cruzadas, Afogado e Versus. Pressione Esc para fechar.');
+        setRulesModalVisible(true);
+      } else if (e.key === 'Escape') {
+        closeRules();
+      }
+    };
+
+    window.addEventListener('keydown', onKey as EventListener);
+    return () => window.removeEventListener('keydown', onKey as EventListener);
+  }, []);
   const [lobbyStep, setLobbyStep] = useState<'connecting' | 'ready' | 'countdown'>('connecting');
   const [countdownVal, setCountdownVal] = useState<number>(3);
 
@@ -1237,7 +1311,7 @@ export default function App() {
     // Validate if the word is in the lexicon
     if (targetWords.length > 0) {
       const activeLength = targetWords[0].length;
-      if (!validateWord(currentGuess, activeLength, targetWords)) {
+      if (!validateWord(currentGuess, activeLength, targetWords).valid) {
         setShakeRowIndex(gameModeType === 'afogado' ? 0 : guesses.length);
         setTimeout(() => setShakeRowIndex(null), 500);
         showToast("Palavra não aceita");
@@ -2967,6 +3041,19 @@ export default function App() {
         </div>
       )}
 
+      {/* Rules Modal */}
+      {rulesModalVisible && (
+        <div className="rules-modal-backdrop" onClick={closeRules}>
+          <div className="rules-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>{rulesModalTitle}</h3>
+              <button className="modal-close-btn" onClick={closeRules} aria-label="Fechar">✕</button>
+            </div>
+            <div style={{ marginTop: '0.75rem', color: 'var(--text-secondary)' }}>{rulesModalText}</div>
+          </div>
+        </div>
+      )}
+
       <header>
         <div className="logo">
           👑 O NOSSO TERMO <span>Diário</span>
@@ -3581,10 +3668,13 @@ export default function App() {
                     <span className="versus-indicator-badge" title="Disponível no Modo Versus">⚔️ Versus</span>
                   )}
                 </div>
-                <div className="challenge-status-indicator">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button className="help-btn" onClick={() => showRules('bomb')} aria-label="Regras Bomba">?</button>
+                  <div className="challenge-status-indicator">
                   {activePlayer === 'Ambos'
                     ? (bombResultToday ? '✅' : '❌')
                     : (bombResultToday && oppState.bombScore ? '✅' : bombResultToday || oppState.bombScore ? '⏳' : '❌')}
+                  </div>
                 </div>
               </div>
               <h3 className="challenge-title">Modo Bomba</h3>
@@ -3636,10 +3726,13 @@ export default function App() {
                     <span className="versus-indicator-badge" title="Disponível no Modo Versus">⚔️ Versus</span>
                   )}
                 </div>
-                <div className="challenge-status-indicator">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button className="help-btn" onClick={() => showRules('crossword')} aria-label="Regras Cruzadas">?</button>
+                  <div className="challenge-status-indicator">
                   {activePlayer === 'Ambos'
                     ? (crosswordResultToday ? '✅' : '❌')
                     : (crosswordResultToday && oppState.crosswordScore ? '✅' : crosswordResultToday || oppState.crosswordScore ? '⏳' : '❌')}
+                  </div>
                 </div>
               </div>
               <h3 className="challenge-title">Palavras Cruzadas</h3>
@@ -3749,10 +3842,13 @@ export default function App() {
                     <span className="versus-indicator-badge" title="Disponível no Modo Versus">⚔️ Versus</span>
                   )}
                 </div>
-                <div className="challenge-status-indicator">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button className="help-btn" onClick={() => showRules('afogado')} aria-label="Regras Afogado">?</button>
+                  <div className="challenge-status-indicator">
                   {activePlayer === 'Ambos'
                     ? (afogadoResultToday ? '✅' : '❌')
                     : (afogadoResultToday && oppState.afogadoScore ? '✅' : afogadoResultToday || oppState.afogadoScore ? '⏳' : '❌')}
+                  </div>
                 </div>
               </div>
               <h3 className="challenge-title">Modo Afogado</h3>
@@ -3812,6 +3908,9 @@ export default function App() {
                 <span className="versus-indicator-badge" title="Disponível no Modo Versus" style={{ transform: 'translateY(1px)' }}>⚔️ Versus</span>
               )}
             </h2>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-1.25rem' }}>
+              <button className="help-btn" onClick={() => showRules('blitz')} aria-label="Regras Blitz">?</button>
+            </div>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', textAlign: 'left' }}>
               {activePlayer === 'Ambos'
                 ? 'Tentem adivinhar o maior número de palavras sequenciais antes do cronômetro zerar. O jogo passa para a próxima palavra instantaneamente.'
@@ -3928,9 +4027,12 @@ export default function App() {
                       <div className="challenge-badge">Termo</div>
                       <span className="versus-indicator-badge" title="Disponível no Modo Versus">⚔️ Versus</span>
                     </div>
-                    <div className="challenge-status-indicator">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <button className="help-btn" onClick={() => showRules('termo')} aria-label="Regras Termo">?</button>
+                        <div className="challenge-status-indicator">
                       {todayResult?.mode1 ? '✅' : '❌'}
-                    </div>
+                        </div>
+                      </div>
                   </div>
                   <h3 className="challenge-title">Termo</h3>
                   <p className="challenge-desc">Adivinhe uma única palavra de {todayChallenge ? todayChallenge.words.mode1.length : '5'} letras em até {todayChallenge ? todayChallenge.words.mode1.length + 1 : 6} tentativas.</p>
@@ -3968,8 +4070,11 @@ export default function App() {
                       <div className="challenge-badge">Dueto</div>
                       <span className="versus-indicator-badge" title="Disponível no Modo Versus">⚔️ Versus</span>
                     </div>
-                    <div className="challenge-status-indicator">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <button className="help-btn" onClick={() => showRules('dueto')} aria-label="Regras Dueto">?</button>
+                      <div className="challenge-status-indicator">
                       {todayResult?.mode2 ? '✅' : '❌'}
+                      </div>
                     </div>
                   </div>
                   <h3 className="challenge-title">Dueto</h3>
@@ -4023,8 +4128,11 @@ export default function App() {
                       <div className="challenge-badge">Quarteto</div>
                       <span className="versus-indicator-badge" title="Disponível no Modo Versus">⚔️ Versus</span>
                     </div>
-                    <div className="challenge-status-indicator">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <button className="help-btn" onClick={() => showRules('quarteto')} aria-label="Regras Quarteto">?</button>
+                      <div className="challenge-status-indicator">
                       {todayResult?.mode4 ? '✅' : '❌'}
+                      </div>
                     </div>
                   </div>
                   <h3 className="challenge-title">Quarteto</h3>
@@ -4556,11 +4664,6 @@ export default function App() {
                       handleDeleteInput();
                     }
                     event.target.value = " ";
-                  }}
-                  onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
-                    if (event.key === 'Enter') {
-                      handleEnterInput();
-                    }
                   }}
                   aria-label="Entrada de letras do jogo"
                   className="hidden-native-input"

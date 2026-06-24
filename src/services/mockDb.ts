@@ -133,7 +133,12 @@ async function selectSupabaseWords(length?: number, count: number = 100, seed: n
   if (localWordsStr) {
     try {
       const localWords = JSON.parse(localWordsStr);
-      const filtered = localWords.filter((item: any) => item.word && (!length || item.length === length));
+      const filtered = localWords.filter((item: any) => 
+        item.word && 
+        (!length || item.length === length) &&
+        item.source !== 'lexico' &&
+        item.source !== 'conjugações'
+      );
       if (filtered.length > 0) {
         filtered.sort((a: any, b: any) => a.word.localeCompare(b.word));
 
@@ -1401,10 +1406,22 @@ export function createWordGenJob(requestedWords: number, isAuto: boolean = false
   jobs.push(newJob);
   localStorage.setItem('termo_db_jobs', JSON.stringify(jobs));
   
-  // Trigger async execution
-  runWordGenJob(newJob.id);
+  // Trigger async execution sequentially via the promise queue
+  queueWordGenJob(newJob.id);
   
   return newJob.id;
+}
+
+let activeJobChain = Promise.resolve();
+
+export function queueWordGenJob(jobId: string) {
+  activeJobChain = activeJobChain.then(async () => {
+    try {
+      await runWordGenJob(jobId);
+    } catch (e) {
+      console.error(`Error executing job ${jobId} in queue:`, e);
+    }
+  });
 }
 
 export async function runWordGenJob(jobId: string) {
@@ -1434,7 +1451,7 @@ export async function runWordGenJob(jobId: string) {
     const dbWords = JSON.parse(localStorage.getItem('termo_db_words') || '[]');
     const existingWordsSet = new Set<string>(dbWords.map((w: any) => w.word));
     
-    const batchSize = 50;
+    const batchSize = 125;
     const maxAttempts = Math.ceil(totalToGenerate / batchSize) * 2;
     let attempts = 0;
     
@@ -1464,10 +1481,12 @@ export async function runWordGenJob(jobId: string) {
         });
         
         console.log(`Batch ${attempts} completed. Valid: ${validBatchCount}. Total: ${generatedCount}/${totalToGenerate}`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Wait 5 seconds between batches to avoid hitting Groq API RPM rate limit
+        await new Promise(resolve => setTimeout(resolve, 5000));
       } catch (err) {
         console.error(`Error in batch ${attempts} for job ${jobId}:`, err);
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        // Wait 15 seconds after an error (like a 429 rate limit) to cool down
+        await new Promise(resolve => setTimeout(resolve, 15000));
       }
     }
     
@@ -1552,7 +1571,7 @@ export function startupCheckJobs() {
   
   const pending = jobs.filter((j: any) => j.status === 'Pending');
   pending.forEach((j: any) => {
-    runWordGenJob(j.id);
+    queueWordGenJob(j.id);
   });
 }
 
