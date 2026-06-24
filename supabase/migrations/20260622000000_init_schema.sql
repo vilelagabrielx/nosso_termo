@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS public.words (
 -- Seed initial words
 INSERT INTO public.words (word, length, source) VALUES
 ('BOLA', 4, 'Dicionário'), ('CASA', 4, 'Dicionário'), ('MESA', 4, 'Dicionário'), ('ROSA', 4, 'Dicionário'), ('GATO', 4, 'Dicionário'),
-('TERMO', 5, 'Dicionário'), ('PORTA', 5, 'Dicionário'), ('VENTO', 5, 'Dicionário'), ('CHAVE', 5, 'Dicionário'), ('PLACA', 5, 'Dicionário'),
+('TERMO', 5, 'Dicionário'), ('AUDIO', 5, 'Dicionário'), ('PORTA', 5, 'Dicionário'), ('VENTO', 5, 'Dicionário'), ('CHAVE', 5, 'Dicionário'), ('PLACA', 5, 'Dicionário'),
 ('CANETA', 6, 'Dicionário'), ('JANELA', 6, 'Dicionário'), ('PAREDE', 6, 'Dicionário'), ('CAMISA', 6, 'Dicionário'), ('SAPATO', 6, 'Dicionário'),
 ('CADERNO', 7, 'Dicionário'), ('ESPELHO', 7, 'Dicionário'), ('TECLADO', 7, 'Dicionário'), ('CELULAR', 7, 'Dicionário'), ('GARRAFA', 7, 'Dicionário'),
 ('TELEFONE', 8, 'Dicionário'), ('FLORESTA', 8, 'Dicionário'), ('PROBLEMA', 8, 'Dicionário'), ('PERGUNTA', 8, 'Dicionário'), ('RESPOSTA', 8, 'Dicionário'),
