@@ -867,13 +867,15 @@ export default function App() {
           const oppTotal = oppName === 'Gabriel' ? vMatch.gabrielTotal : vMatch.alessandraTotal;
           let oppRound = 1;
           let oppCompleted = false;
-          if (oppQuarteto > 0) {
-            oppRound = 4;
-            oppCompleted = true;
-          } else if (oppDueto > 0) {
-            oppRound = 3;
-          } else if (oppTermo > 0) {
-            oppRound = 2;
+if (!oppTermo || oppTermo === 0) {
+          oppRound = 1;
+        } else if (!oppDueto || oppDueto === 0) {
+          oppRound = 2;
+        } else if (!oppQuarteto || oppQuarteto === 0) {
+          oppRound = 3;
+        } else {
+          oppRound = 4;
+          oppCompleted = true;
           }
 
           setOppState(prev => ({
@@ -2139,20 +2141,23 @@ export default function App() {
         total: vMatch.alessandraTotal
       });
 
-      // Determine what round the active player should start from
+      // Determine what round the active player should start from.
+      // Always progress sequentially and never skip an unfinished earlier round.
       const activeScores = activePlayer === 'Gabriel' ?
         { termo: vMatch.gabrielTermo, dueto: vMatch.gabrielDueto, quarteto: vMatch.gabrielQuarteto } :
         { termo: vMatch.alessandraTermo, dueto: vMatch.alessandraDueto, quarteto: vMatch.alessandraQuarteto };
 
-      if (activeScores.quarteto > 0) {
+      if (!activeScores.termo || activeScores.termo === 0) {
+        startRound = 1;
+      } else if (!activeScores.dueto || activeScores.dueto === 0) {
+        startRound = 2;
+      } else if (!activeScores.quarteto || activeScores.quarteto === 0) {
+        startRound = 3;
+      } else {
         // Player already finished everything, show recap
         setVersusRound(3);
         setView('versus-recap');
         return;
-      } else if (activeScores.dueto > 0) {
-        startRound = 3;
-      } else if (activeScores.termo > 0) {
-        startRound = 2;
       }
     } else {
       setGabrielVersusScores({ termo: 0, dueto: 0, quarteto: 0, bomb: 0, crossword: 0, blitz: 0, afogado: 0, total: 0 });
@@ -2410,13 +2415,15 @@ export default function App() {
           oppQuarteto = vMatch.alessandraQuarteto;
           oppTotal = vMatch.alessandraTotal;
         }
-        if (oppQuarteto > 0) {
-          oppCompleted = true;
-          oppRound = 4;
-        } else if (oppDueto > 0) {
-          oppRound = 3;
-        } else if (oppTermo > 0) {
+        if (!oppTermo || oppTermo === 0) {
+          oppRound = 1;
+        } else if (!oppDueto || oppDueto === 0) {
           oppRound = 2;
+        } else if (!oppQuarteto || oppQuarteto === 0) {
+          oppRound = 3;
+        } else {
+          oppRound = 4;
+          oppCompleted = true;
         }
       }
 
