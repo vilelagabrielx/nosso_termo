@@ -164,12 +164,11 @@ async function selectSupabaseWords(length?: number, count: number = 100, seed: n
   return [];
 }
 
-async function selectVaryingWords(count: number, baseSeed: number, excludeList: string[] = []): Promise<string[]> {
+async function selectVaryingWords(count: number, baseSeed: number, excludeList: string[] = [], length: number = 5): Promise<string[]> {
   const selectedWords: string[] = [...excludeList];
   const results: string[] = [];
   for (let i = 0; i < count; i++) {
-    const len = 4 + ((baseSeed + i) % 3); // 4, 5, or 6 letras
-    const candidates = await selectSupabaseWords(len, 20, baseSeed + i * 10);
+    const candidates = await selectSupabaseWords(length, 20, baseSeed + i * 10);
     const chosen = candidates.find(c => c.word && !selectedWords.includes(c.word))?.word;
     if (chosen) {
       selectedWords.push(chosen);
@@ -427,60 +426,98 @@ export function normalizeDateString(value: string | Date | null | undefined): st
   return trimmed;
 }
 
+export function resolveWordLength(option: string, seedStr: string): number {
+  if (option === 'aleatorio') {
+    const seed = getSeedForDate(seedStr);
+    const lengths = [4, 5, 6, 7, 8];
+    return lengths[seed % lengths.length];
+  }
+  const parsed = parseInt(option, 10);
+  if (!isNaN(parsed) && parsed >= 4 && parsed <= 8) {
+    return parsed;
+  }
+  return 5;
+}
+
 // Get challenge for date
-export async function getChallengeForDate(dateStr: string): Promise<Challenge> {
+export async function getChallengeForDate(dateStr: string, lengthOption: string = '5'): Promise<Challenge> {
   initLocalStorage();
+  const targetLen = resolveWordLength(lengthOption, dateStr);
+  const localKey = targetLen === 5 ? dateStr : `${dateStr}_len${targetLen}`;
+
   const challenges: Challenge[] = JSON.parse(localStorage.getItem('termo_challenges') || '[]');
-  const existing = challenges.find(c => c.date === dateStr);
+  const existing = challenges.find(c => c.date === localKey);
   if (existing) {
     return existing;
   }
 
-  const remoteExisting = await supabase.from('challenges').select('*').eq('date', dateStr).maybeSingle();
-  if (remoteExisting.data) {
-    const challenge: Challenge = {
-      date: String(remoteExisting.data.date),
-      words: {
-        mode1: normalizeWord(remoteExisting.data.word_1 || remoteExisting.data.mode1 || remoteExisting.data.palavra_1 || ''),
-        mode2: (remoteExisting.data.words_2 || remoteExisting.data.mode2 || remoteExisting.data.palavras_2 || []).map(normalizeWord),
-        mode4: (remoteExisting.data.words_4 || remoteExisting.data.mode4 || remoteExisting.data.palavras_4 || []).map(normalizeWord)
-      }
-    };
-    challenges.push(challenge);
+  if (targetLen === 5) {
+    const remoteExisting = await supabase.from('challenges').select('*').eq('date', dateStr).maybeSingle();
+    if (remoteExisting.data) {
+      const challenge: Challenge = {
+        date: String(remoteExisting.data.date),
+        words: {
+          mode1: normalizeWord(remoteExisting.data.word_1 || remoteExisting.data.mode1 || remoteExisting.data.palavra_1 || ''),
+          mode2: (remoteExisting.data.words_2 || remoteExisting.data.mode2 || remoteExisting.data.palavras_2 || []).map(normalizeWord),
+          mode4: (remoteExisting.data.words_4 || remoteExisting.data.mode4 || remoteExisting.data.palavras_4 || []).map(normalizeWord)
+        }
+      };
+      challenges.push(challenge);
+      localStorage.setItem('termo_challenges', JSON.stringify(challenges));
+      return challenge;
+    }
+
+    const seed = getSeedForDate(dateStr);
+    const mode1 = (await selectSupabaseWords(5, 1, seed))[0]?.word;
+    const mode2 = await selectVaryingWords(2, seed + 1, [mode1], 5);
+    const mode4 = await selectVaryingWords(4, seed + 2, [mode1, ...mode2], 5);
+
+    if (!mode1 || mode2.length < 2 || mode4.length < 4) {
+      throw new Error('A tabela palavras no Supabase não tem palavras suficientes para montar o desafio de hoje.');
+    }
+
+    const words = { mode1, mode2, mode4 };
+    const newChallenge: Challenge = { date: dateStr, words };
+    challenges.push(newChallenge);
     localStorage.setItem('termo_challenges', JSON.stringify(challenges));
-    return challenge;
+
+    incrementWordsUsage([mode1, ...mode2, ...mode4]).catch(err =>
+      console.error('Failed to increment daily challenge words usage:', err)
+    );
+
+    await supabase.from('challenges').insert({
+      date: dateStr,
+      word_1: mode1,
+      words_2: mode2,
+      words_4: mode4
+    });
+
+    return newChallenge;
+  } else {
+    // Ensure the 5-letter challenge row is generated and inserted in Supabase
+    // so we can get its ID when submitting results
+    await getChallengeForDate(dateStr, '5').catch(() => {});
+
+    const seed = getSeedForDate(dateStr + "_len" + targetLen);
+    const mode1 = (await selectSupabaseWords(targetLen, 1, seed))[0]?.word;
+    const mode2 = await selectVaryingWords(2, seed + 1, [mode1], targetLen);
+    const mode4 = await selectVaryingWords(4, seed + 2, [mode1, ...mode2], targetLen);
+
+    if (!mode1 || mode2.length < 2 || mode4.length < 4) {
+      throw new Error(`A tabela palavras no Supabase não tem palavras suficientes de ${targetLen} letras para montar o desafio.`);
+    }
+
+    const words = { mode1, mode2, mode4 };
+    const newChallenge: Challenge = { date: localKey, words };
+    challenges.push(newChallenge);
+    localStorage.setItem('termo_challenges', JSON.stringify(challenges));
+
+    incrementWordsUsage([mode1, ...mode2, ...mode4]).catch(err =>
+      console.error('Failed to increment daily challenge words usage:', err)
+    );
+
+    return newChallenge;
   }
-
-  // Select from Supabase table `palavras`.
-  const seed = getSeedForDate(dateStr);
-  const len1 = 4 + (seed % 3); // 4, 5, 6 letras
-
-  const mode1 = (await selectSupabaseWords(len1, 1, seed))[0]?.word;
-  const mode2 = await selectVaryingWords(2, seed + 1, [mode1]);
-  const mode4 = await selectVaryingWords(4, seed + 2, [mode1, ...mode2]);
-
-  if (!mode1 || mode2.length < 2 || mode4.length < 4) {
-    throw new Error('A tabela palavras no Supabase não tem palavras suficientes para montar o desafio de hoje.');
-  }
-
-  const words = { mode1, mode2, mode4 };
-  const newChallenge: Challenge = { date: dateStr, words };
-  challenges.push(newChallenge);
-  localStorage.setItem('termo_challenges', JSON.stringify(challenges));
-
-  // Increment usage for newly drawn daily words
-  incrementWordsUsage([mode1, ...mode2, ...mode4]).catch(err =>
-    console.error('Failed to increment daily challenge words usage:', err)
-  );
-
-  await supabase.from('challenges').insert({
-    date: dateStr,
-    word_1: mode1,
-    words_2: mode2,
-    words_4: mode4
-  });
-
-  return newChallenge;
 }
 
 // Get Player result for date
@@ -1043,15 +1080,15 @@ export function getSeedForDate(dateStr: string): number {
 export function getWordsFromDb(length: number, count: number): string[] {
   initLocalStorage();
   const words = JSON.parse(localStorage.getItem('termo_db_words') || '[]');
-  const candidates = words.filter((w: any) => w.length === length);
+  const candidates = words.filter((w: any) => w.length === length && w.word.length === length);
   
   if (candidates.length < count) {
     console.warn(`Not enough words of length ${length} in DB. Needed ${count}, found ${candidates.length}. Seeding fallbacks.`);
     const list = FALLBACK_WORDS_BY_LENGTH[length] || FALLBACK_WORDS_BY_LENGTH[5];
     let addedCount = 0;
     list.forEach(word => {
-      const normalized = word.toUpperCase();
-      if (!words.some((w: any) => w.word === normalized)) {
+      const normalized = normalizeWord(word);
+      if (normalized.length === length && !words.some((w: any) => w.word === normalized)) {
         words.push({
           id: `w-fallback-${Date.now()}-${addedCount++}`,
           word: normalized,
@@ -1264,18 +1301,21 @@ export function saveSpecialModeResult(result: SpecialModeResult) {
 }
 
 // Generate versus exclusive words from DB
-export async function getVersusWordsForDate(dateStr: string): Promise<DailyWords> {
+export async function getVersusWordsForDate(dateStr: string, lengthOption: string = '5'): Promise<DailyWords> {
   initLocalStorage();
+  const targetLen = resolveWordLength(lengthOption, dateStr + "_versus");
   const key = 'termo_versus_challenges';
   const challenges = JSON.parse(localStorage.getItem(key) || '{}');
-  if (challenges[dateStr]) {
-    return challenges[dateStr];
+  const challengeKey = targetLen === 5 ? dateStr : `${dateStr}_len${targetLen}`;
+  
+  if (challenges[challengeKey]) {
+    return challenges[challengeKey];
   }
   
-  const seed = getSeedForDate(dateStr + "_versus");
-  const len1 = 5 + (seed % 3); // 5, 6, 7
-  const len2 = 4 + ((seed + 1) % 4); // 4, 5, 6, 7
-  const len4 = 5 + ((seed + 2) % 3); // 5, 6, 7
+  const seed = getSeedForDate(dateStr + "_versus_len" + targetLen);
+  const len1 = targetLen;
+  const len2 = targetLen;
+  const len4 = targetLen;
 
   const usedWords = new Set<string>();
 
@@ -1310,11 +1350,11 @@ export async function getVersusWordsForDate(dateStr: string): Promise<DailyWords
   }
 
   if (!mode1 || mode2.length < 2 || mode4.length < 4) {
-    throw new Error('A tabela palavras no Supabase não tem palavras suficientes para o Versus.');
+    throw new Error(`A tabela palavras no Supabase não tem palavras suficientes de ${targetLen} letras para o Versus.`);
   }
 
   const words = { mode1, mode2, mode4 };
-  challenges[dateStr] = words;
+  challenges[challengeKey] = words;
   localStorage.setItem(key, JSON.stringify(challenges));
   return words;
 }
@@ -1584,6 +1624,31 @@ export async function ensureWordsLoaded(length: number) {
     return;
   }
 
+  const loadLocalFallback = () => {
+    const localWordsStr = localStorage.getItem('termo_db_words');
+    if (localWordsStr) {
+      try {
+        const localWords = JSON.parse(localWordsStr);
+        let localCount = 0;
+        localWords.forEach((item: any) => {
+          if (item.word && item.length === length) {
+            const norm = item.word
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .toLowerCase()
+              .replace(/[^a-z]/g, '')
+              .trim();
+            loadedWordsCache.add(norm);
+            localCount++;
+          }
+        });
+        console.log(`Loaded ${localCount} fallback words of length ${length} from local cache.`);
+      } catch (e) {
+        console.error('Failed to parse local fallback cache:', e);
+      }
+    }
+  };
+
   try {
     // 1. Get the total count of words for this length (enabled and disabled)
     const { count, error: countError } = await supabase
@@ -1594,6 +1659,7 @@ export async function ensureWordsLoaded(length: number) {
     if (countError) throw countError;
     
     if (count === null || count === 0) {
+      loadLocalFallback();
       loadedWordLengths.add(length);
       return;
     }
@@ -1638,6 +1704,8 @@ export async function ensureWordsLoaded(length: number) {
     console.log(`Loaded ${loadedCount} words of length ${length} into validation cache.`);
   } catch (err) {
     console.error("Error loading words of length " + length, err);
+    loadLocalFallback();
+    loadedWordLengths.add(length);
   }
 }
 

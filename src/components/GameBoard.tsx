@@ -97,8 +97,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 let cellStatuses: ('correct' | 'present' | 'absent' | 'typing' | '')[] = Array(targetLen).fill('');
 
                 if (showGuess && guessWord) {
-                  cellsContent = guessWord.split('');
                   cellStatuses = getLetterStatuses(guessWord, targetWord);
+                  const isWordCorrect = cellStatuses.every(s => s === 'correct');
+                  if (isWordCorrect) {
+                    cellsContent = targetWord.split('');
+                  } else {
+                    cellsContent = guessWord.split('');
+                  }
                 } else if (isCurrentRow && !isSolved) {
                   // Typing in the active row
                   for (let i = 0; i < targetLen; i++) {

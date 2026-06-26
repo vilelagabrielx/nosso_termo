@@ -37,6 +37,7 @@ import {
   getAfogadoRecords,
   saveAfogadoMatch,
   getAfogadoWordForIndex,
+  resolveWordLength,
   type Challenge,
   type DailyResult,
   type VersusResult,
@@ -123,11 +124,11 @@ export default function App() {
   // Rules modal state
   const [rulesModalVisible, setRulesModalVisible] = useState<boolean>(false);
   const [rulesModalTitle, setRulesModalTitle] = useState<string>('');
-  const [rulesModalText, setRulesModalText] = useState<string>('');
+  const [rulesModalText, setRulesModalText] = useState<React.ReactNode>('');
 
   const showRules = (key: string) => {
     let title = '';
-    let text = '';
+    let text: React.ReactNode = '';
     switch (key) {
       case 'termo':
         title = 'Regras — Termo';
@@ -151,7 +152,97 @@ export default function App() {
         break;
       case 'crossword':
         title = 'Regras — Palavras Cruzadas';
-        text = 'Resolva a grade preenchendo palavras a partir das pistas dadas. Escolha a dificuldade antes de começar; níveis mais altos oferecem pistas mais enigmáticas e maior recompensa em pontos.';
+        text = (
+          <div className="crossword-rules-modal-content">
+            <p>
+              As palavras cruzadas são um dos jogos de raciocínio lógico e vocabulário mais populares do mundo.
+              Quando avançamos para as dificuldades média e difícil, o jogo deixa de ser apenas sobre sinônimos diretos e passa a exigir pensamento lateral, conhecimentos gerais profundos e a compreensão de certas "regras não escritas" (convenções) criadas pelos autores.
+            </p>
+            <p style={{ marginTop: '0.5rem', fontWeight: 600 }}>
+              Abaixo, apresentamos o guia completo e detalhado das regras, estrutura e convenções das palavras cruzadas de nível médio a difícil:
+            </p>
+
+            <div className="rules-section">
+              <h4>1. A Estrutura do Jogo</h4>
+              <p>O campo de jogo é tradicionalmente chamado de <strong>diagrama</strong> ou <strong>grade</strong>.</p>
+              <ul>
+                <li><strong>Quadrados Brancos:</strong> Onde as letras devem ser inseridas. Cada quadrado branco recebe exatamente uma letra (a menos que seja um quebra-cabeça temático especial, conhecido como <em>rebus</em>, onde um quadrado pode conter uma palavra inteira ou símbolo, comum em jornais de alto nível).</li>
+                <li><strong>Quadrados Pretos:</strong> Servem para separar as palavras. Eles determinam o fim de uma palavra e o início de outra. Nenhuma letra pode ser escrita neles.</li>
+                <li><strong>Numeração:</strong> Os quadrados brancos onde as palavras começam contêm um número pequeno. Esse número corresponde à dica fornecida nas listas de "Horizontais" (Across) e "Verticais" (Down).</li>
+              </ul>
+            </div>
+
+            <div className="rules-section">
+              <h4>2. As Regras Básicas</h4>
+              <p>O objetivo do jogo é preencher todos os quadrados brancos com as letras corretas, formando palavras ou frases que se cruzam perfeitamente.</p>
+              <ul>
+                <li><strong>Interseção Perfeita:</strong> Quando você preenche uma palavra na horizontal, as letras dessa palavra devem fazer sentido para as palavras que a cruzam na vertical. Esta é a regra de ouro do jogo e a sua maior ferramenta de verificação.</li>
+                <li><strong>Sem Espaços:</strong> Se a resposta for composta por mais de uma palavra (ex: "RIO DE JANEIRO"), ela deve ser escrita sem espaços no diagrama (ex: <code>RIODEJANEIRO</code>).</li>
+                <li><strong>Acentuação e Cedilha:</strong> Na esmagadora maioria das palavras cruzadas tradicionais, ignoram-se os acentos, o til e a cedilha. Um "Ç" cruza com um "C" normal; um "Á" cruza com um "A" normal.</li>
+              </ul>
+            </div>
+
+            <div className="rules-section">
+              <h4>3. Regras e Convenções de Dificuldade (Média a Difícil)</h4>
+              <p>Nas dificuldades mais altas, os criadores do jogo usam convenções rigorosas para dar pistas sobre o formato da resposta, ao mesmo tempo em que tentam enganar o jogador.</p>
+              <ul>
+                <li>
+                  <strong>A. Concordância Absoluta:</strong> A resposta deve sempre concordar em tempo, número e grau com a dica fornecida.
+                  <ul className="sub-list">
+                    <li><em>Pluralidade:</em> Se a dica for "Árvores frutíferas" (plural), a resposta não pode ser "MACIEIRA", deve ser "MACIEIRAS".</li>
+                    <li><em>Tempo Verbal:</em> Se a dica for "Correu muito rápido" (passado), a resposta deve estar no passado (ex: "VOOU"). Se for "Correndo" (gerúndio), a resposta termina em "-NDO".</li>
+                    <li><em>Classe Gramatical:</em> Adjetivo pede adjetivo; substantivo pede substantivo.</li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>B. O Ponto de Interrogação (?):</strong> Esta é a marca registrada das palavras cruzadas difíceis. Quando uma dica termina com um ponto de interrogação, não a leve ao pé da letra. Ela indica um trocadilho, uma brincadeira com palavras ou uma interpretação irônica.
+                  <ul className="sub-list">
+                    <li>Exemplo: "Banco de dados?" poderia ter como resposta "DNA".</li>
+                    <li>Exemplo: "Lugar de quem perdeu o trem?" poderia ser "ESTAÇÃO" em vez de um estado emocional.</li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>C. Abreviações e Siglas:</strong> Se a resposta desejada for uma abreviação ou sigla, a dica fará alusão a isso usando uma abreviação ou indicando "Abrev." no final.
+                  <ul className="sub-list">
+                    <li>Exemplo: "Méd. especialista em ossos" (Resposta: "ORTOP").</li>
+                    <li>Exemplo: "Senhor (abrev.)" (Resposta: "SR").</li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>D. Lacunas (Preencha o espaço):</strong> Dicas que contêm um sublinhado (____) indicam que a resposta é a palavra que falta para completar uma citação, título ou nome conhecido.
+                  <ul className="sub-list">
+                    <li>Exemplo: "Romeu e ____" (Resposta: "JULIETA").</li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>E. Referências Cruzadas:</strong> Comuns no nível difícil. A dica obriga você a olhar para outra parte do diagrama.
+                  <ul className="sub-list">
+                    <li>Exemplo: Dica 15 Horizontal: "Com a 20 Vertical, o nome do atual presidente da França".</li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>F. Ambiguidade Proposital:</strong> Autores usam palavras com múltiplos sentidos.
+                  <ul className="sub-list">
+                    <li>Exemplo: A dica é "Manga" (pode ser "FRUTA", "CAMISA" ou "PASTO").</li>
+                    <li>Exemplo: A dica é "Corte" (pode ser verbo, local de reis ou tribunal).</li>
+                  </ul>
+                </li>
+              </ul>
+            </div>
+
+            <div className="rules-section">
+              <h4>4. Estratégias para Resolver as Mais Difíceis</h4>
+              <p>Se você vai encarar uma palavra cruzada de nível difícil, utilize estas táticas:</p>
+              <ul>
+                <li><strong>Ataque as Lacunas Primeiro:</strong> Dicas com sublinhados dependem apenas de memória factual e criam bons pontos de ancoragem.</li>
+                <li><strong>Busque os Plurais (Os "S"):</strong> Se uma dica está no plural, a última letra geralmente é um "S". Preencha-o para ajudar nas interseções.</li>
+                <li><strong>Cuidado com Sufixos e Prefixos:</strong> Terminações comuns como "-NDO" (gerúndio) ou "-ÍSSIMO" (superlativo) ajudam a abrir caminhos.</li>
+                <li><strong>Trabalhe nas Interseções:</strong> Adivinhe a palavra horizontal através de 2 ou 3 letras reveladas pelas palavras verticais.</li>
+                <li><strong>Reconheça "Crosswordese":</strong> Palavras curtas e cheias de vogais recorrentes (ex: "ARA", "OCA", "ANO", "IRA") são cruciais para conectar a grade.</li>
+              </ul>
+            </div>
+          </div>
+        );
         break;
       case 'afogado':
         title = 'Regras — Afogado';
@@ -205,6 +296,12 @@ export default function App() {
   const [woRemainingTime, setWoRemainingTime] = useState<number | null>(null);
   const woTimerRef = useRef<any>(null);
 
+  // Word length selection states
+  const [wordLengthOption, setWordLengthOption] = useState<'4' | '5' | '6' | '7' | '8' | 'aleatorio'>(() => {
+    return (localStorage.getItem('termo_word_length_option') as any) || '5';
+  });
+  const [opponentSelectedWordLengthOption, setOpponentSelectedWordLengthOption] = useState<string | null>(null);
+
   // Blitz States
   const [blitzRecordsList, setBlitzRecordsList] = useState<BlitzRecord[]>([]);
   const [blitzHistoryList, setBlitzHistoryList] = useState<BlitzMatch[]>([]);
@@ -235,6 +332,14 @@ export default function App() {
   const [crosswordFocusedKey, setCrosswordFocusedKey] = useState<string | null>(null);
   const [crosswordSolvedIds, setCrosswordSolvedIds] = useState<string[]>([]);
   const [crosswordMessage, setCrosswordMessage] = useState<string>('');
+  const [crosswordAssisted, setCrosswordAssisted] = useState<boolean>(false);
+  const [isCrosswordBlurred, setIsCrosswordBlurred] = useState<boolean>(false);
+  const [crosswordAutocorrect, setCrosswordAutocorrect] = useState<boolean>(false);
+  const [isRebusInputActive, setIsRebusInputActive] = useState<boolean>(false);
+  const isCrosswordBlurredRef = useRef<boolean>(false);
+  useEffect(() => {
+    isCrosswordBlurredRef.current = isCrosswordBlurred;
+  }, [isCrosswordBlurred]);
 
   // Afogado States
   const [afogadoHistoryList, setAfogadoHistoryList] = useState<AfogadoMatch[]>([]);
@@ -414,10 +519,13 @@ export default function App() {
         setOnlineUsers(users);
       })
       .on('broadcast', { event: 'invite' }, (payload) => {
-        const { to } = payload.payload;
+        const { to, wordLengthOption: incomingOption } = payload.payload;
         if (to === activePlayer) {
           // Received invite from 'from'
           setVersusInviteVisible(true);
+          if (incomingOption) {
+            setOpponentSelectedWordLengthOption(incomingOption);
+          }
         }
       })
       .on('broadcast', { event: 'accept' }, (payload) => {
@@ -808,10 +916,10 @@ export default function App() {
   }, [view]);
 
 
-  const loadDashboardData = async (playerName: 'Gabriel' | 'Alessandra' | 'Ambos') => {
+  const loadDashboardData = async (playerName: 'Gabriel' | 'Alessandra' | 'Ambos', lengthOpt: string = wordLengthOption) => {
     setLoading(true);
     try {
-      const challenge = await getChallengeForDate(todayStr);
+      const challenge = await getChallengeForDate(todayStr, lengthOpt);
       setTodayChallenge(challenge);
 
       // Load active player/Ambos details
@@ -941,6 +1049,12 @@ if (!oppTermo || oppTermo === 0) {
     }
   };
 
+  const handleWordLengthOptionChange = (newOption: '4' | '5' | '6' | '7' | '8' | 'aleatorio') => {
+    setWordLengthOption(newOption);
+    localStorage.setItem('termo_word_length_option', newOption);
+    loadDashboardData(activePlayer, newOption);
+  };
+
   const loadAdminData = async () => {
     const jobs = JSON.parse(localStorage.getItem('termo_db_jobs') || '[]');
     const sorted = [...jobs].sort((a: any, b: any) => b.requestedAt.localeCompare(a.requestedAt));
@@ -1015,6 +1129,66 @@ if (!oppTermo || oppTermo === 0) {
     loadDashboardData(activePlayer);
   };
 
+  const generateShareText = () => {
+    if (gameModeType !== 'daily' && gameModeType !== 'versus') {
+      const modeNames: Record<string, string> = {
+        bomb: 'Bomba',
+        crossword: 'Palavras Cruzadas',
+        blitz: 'Blitz',
+        afogado: 'Afogado'
+      };
+      const modeName = modeNames[gameModeType] || gameModeType;
+      const statusStr = modalSuccess ? `${modalAttempts} tent.` : 'X';
+      return `O Nosso Termo — Modo ${modeName} (${todayStr})\nResultado: ${statusStr}\nPontuação: ${modalScore} pts\nTempo: ${formatTime(modalTime)}\n\nJogue em: ${window.location.origin}`;
+    }
+
+    const numWords = targetWords.length;
+    const modeName = numWords === 1 ? 'Termo' : numWords === 2 ? 'Dueto' : 'Quarteto';
+    const attemptsStr = modalSuccess ? `${modalAttempts}` : 'X';
+    const header = `O Nosso Termo — ${modeName} (${todayStr}) ${attemptsStr}/${maxAttempts}\n`;
+
+    let body = '';
+    const solvedIndices = targetWords.map((target) => {
+      const idx = guesses.findIndex(g => g.slice(0, target.length) === target);
+      return idx !== -1 ? idx : null;
+    });
+
+    for (let r = 0; r < guesses.length; r++) {
+      const guess = guesses[r];
+      const rowParts: string[] = [];
+
+      for (let b = 0; b < numWords; b++) {
+        const target = targetWords[b];
+        const solvedIdx = solvedIndices[b];
+
+        if (solvedIdx !== null && r > solvedIdx) {
+          rowParts.push('⬜⬜⬜⬜⬜');
+        } else {
+          const statuses = getLetterStatuses(guess, target);
+          const emojis = statuses.map((status) => {
+            if (status === 'correct') return '🟩';
+            if (status === 'present') return '🟨';
+            return '⬛';
+          }).join('');
+          rowParts.push(emojis);
+        }
+      }
+      body += rowParts.join('  ') + '\n';
+    }
+
+    return `${header}\n${body}\nJogue em: ${window.location.origin}`;
+  };
+
+  const handleShareResult = () => {
+    const text = generateShareText();
+    navigator.clipboard.writeText(text)
+      .then(() => showToast("📋 Resultados copiados para a área de transferência!"))
+      .catch((err) => {
+        console.error("Failed to copy results:", err);
+        showToast("❌ Não foi possível copiar os resultados.");
+      });
+  };
+
   // Helper to find the first editable cell in Afogado
   const getFirstEditableCell = (word: string, revealedSet: Set<number>): number | null => {
     for (let i = 0; i < word.length; i++) {
@@ -1049,10 +1223,18 @@ if (!oppTermo || oppTermo === 0) {
     return `${lengths.slice(0, -1).join(', ')} e ${lengths[lengths.length - 1]} letras`;
   };
 
-  // Dynamic attempts bounds: Quantidade de letras (tamanho máximo das palavras) + 1
-  const maxAttempts = targetWords.length > 0
-    ? Math.max(...targetWords.map(w => w.length)) + 1
-    : 6;
+  // Dynamic attempts bounds: 6 for Termo (1 word), 7 for Dueto (2 words), 9 for Quarteto (4 words)
+  const maxAttempts = (() => {
+    if (gameModeType === 'daily' || gameModeType === 'versus') {
+      const numWords = targetWords.length;
+      if (numWords === 1) return 6;
+      if (numWords === 2) return 7;
+      if (numWords === 4) return 9;
+    }
+    return targetWords.length > 0
+      ? Math.max(...targetWords.map(w => w.length)) + 1
+      : 6;
+  })();
 
   // Synchronize currentGuess with spaces when target words or guesses count changes
   useEffect(() => {
@@ -1132,6 +1314,209 @@ if (!oppTermo || oppTermo === 0) {
     return cells;
   };
 
+  const getCrossReferences = (clueText: string) => {
+    if (!clueText) return [];
+    const refs: string[] = [];
+    const regex = /(\d+)\s*(?:-|–)?\s*(Across|Down|Horizontal|Vertical|Horiz|Vert|A|D|H|V)/gi;
+    let match;
+    while ((match = regex.exec(clueText)) !== null) {
+      const num = match[1];
+      const dirIndicator = match[2].toLowerCase();
+      let direction: 'across' | 'down' = 'across';
+      if (dirIndicator.startsWith('d') || dirIndicator.startsWith('v')) {
+        direction = 'down';
+      }
+      const suffix = direction === 'across' ? 'A' : 'D';
+      refs.push(`${num}${suffix}`);
+    }
+    return refs;
+  };
+
+  const getActiveClueCrossReferences = () => {
+    if (!crosswordChallenge) return [];
+    const activeEntry = crosswordChallenge.entries.find(e => e.id === crosswordSelectedId);
+    if (!activeEntry) return [];
+    return getCrossReferences(activeEntry.clue);
+  };
+
+  const isCellInCrossReference = (row: number, col: number) => {
+    if (!crosswordChallenge) return false;
+    const refs = getActiveClueCrossReferences();
+    if (refs.length === 0) return false;
+    
+    return crosswordChallenge.entries.some(entry => {
+      if (!refs.includes(entry.id)) return false;
+      return Array.from({ length: entry.answer.length }).some((_, i) => {
+        const r = entry.direction === 'down' ? entry.row + i : entry.row;
+        const c = entry.direction === 'across' ? entry.col + i : entry.col;
+        return r === row && c === col;
+      });
+    });
+  };
+
+  const renderClueTextWithLinks = (clueText: string) => {
+    if (!clueText) return null;
+    const regex = /(\d+)\s*(?:-|–)?\s*(Across|Down|Horizontal|Vertical|Horiz|Vert|A|D|H|V)/gi;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+    
+    while ((match = regex.exec(clueText)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(clueText.slice(lastIndex, match.index));
+      }
+      
+      const num = match[1];
+      const dirIndicator = match[2].toLowerCase();
+      let direction: 'across' | 'down' = 'across';
+      if (dirIndicator.startsWith('d') || dirIndicator.startsWith('v')) {
+        direction = 'down';
+      }
+      const refId = `${num}${direction === 'across' ? 'A' : 'D'}`;
+      
+      parts.push(
+        <button
+          key={match.index}
+          className="clue-ref-link-btn"
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (crosswordChallenge) {
+              const targetEntry = crosswordChallenge.entries.find(item => item.id === refId);
+              if (targetEntry) {
+                setCrosswordSelectedId(refId);
+                const cellKey = `${targetEntry.row}-${targetEntry.col}`;
+                setCrosswordFocusedKey(cellKey);
+                document.getElementById(`crossword-cell-${cellKey}`)?.focus();
+              }
+            }
+          }}
+        >
+          {match[0]}
+        </button>
+      );
+      
+      lastIndex = regex.lastIndex;
+    }
+    
+    if (lastIndex < clueText.length) {
+      parts.push(clueText.slice(lastIndex));
+    }
+    
+    return parts.length > 0 ? parts : clueText;
+  };
+
+  const getCorrectCrosswordCharForCell = (cellKey: string) => {
+    if (!crosswordChallenge) return '';
+    const [row, col] = cellKey.split('-').map(Number);
+    const entry = crosswordChallenge.entries.find(e => {
+      return Array.from({ length: e.answer.length }).some((_, i) => {
+        const r = e.direction === 'down' ? e.row + i : e.row;
+        const c = e.direction === 'across' ? e.col + i : e.col;
+        return r === row && c === col;
+      });
+    });
+    if (!entry) return '';
+    
+    let cellIdx = 0;
+    if (entry.direction === 'down') {
+      cellIdx = row - entry.row;
+    } else {
+      cellIdx = col - entry.col;
+    }
+    
+    return entry.answer[cellIdx] || '';
+  };
+
+  const handleRevealLetter = () => {
+    if (!crosswordFocusedKey || !crosswordChallenge) return;
+    const correctChar = getCorrectCrosswordCharForCell(crosswordFocusedKey);
+    if (correctChar) {
+      setCrosswordCells(prev => ({ ...prev, [crosswordFocusedKey]: correctChar }));
+      setCrosswordAssisted(true);
+    }
+  };
+
+  const handleRevealWord = () => {
+    if (!crosswordSelectedId || !crosswordChallenge) return;
+    const entry = crosswordChallenge.entries.find(e => e.id === crosswordSelectedId);
+    if (!entry) return;
+    
+    setCrosswordCells(prev => {
+      const next = { ...prev };
+      for (let i = 0; i < entry.answer.length; i++) {
+        const r = entry.direction === 'down' ? entry.row + i : entry.row;
+        const c = entry.direction === 'across' ? entry.col + i : entry.col;
+        const key = `${r}-${c}`;
+        const correctChar = getCorrectCrosswordCharForCell(key);
+        next[key] = correctChar;
+      }
+      return next;
+    });
+    setCrosswordAssisted(true);
+  };
+
+  const handleRevealGrid = () => {
+    if (!crosswordChallenge) return;
+    setCrosswordCells(prev => {
+      const next = { ...prev };
+      Object.keys(prev).forEach(key => {
+        const correctChar = getCorrectCrosswordCharForCell(key);
+        next[key] = correctChar;
+      });
+      return next;
+    });
+    setCrosswordAssisted(true);
+  };
+
+  // Autosave progress hook
+  const saveCrosswordProgress = (
+    cells: Record<string, string>,
+    solvedIds: string[],
+    time: number,
+    assisted: boolean,
+    autocorrect: boolean
+  ) => {
+    if (!crosswordChallenge) return;
+    const isVersus = activePlayer !== 'Ambos';
+    const diff = isVersus ? 'medio' : crosswordConfigDifficulty;
+    const dur = isVersus ? 5 : crosswordConfigDuration;
+    const key = `crossword_progress_${todayStr}_${diff}_${dur}`;
+    localStorage.setItem(key, JSON.stringify({ cells, solvedIds, time, assisted, autocorrect }));
+  };
+
+  useEffect(() => {
+    if (gameModeType === 'crossword' && crosswordChallenge && view === 'playing') {
+      saveCrosswordProgress(crosswordCells, crosswordSolvedIds, elapsedTime, crosswordAssisted, crosswordAutocorrect);
+    }
+  }, [crosswordCells, crosswordSolvedIds, elapsedTime, crosswordAssisted, crosswordAutocorrect, gameModeType, crosswordChallenge, view]);
+
+  // Page active / pause timer effect
+  useEffect(() => {
+    if (gameModeType !== 'crossword' || view !== 'playing') {
+      setIsCrosswordBlurred(false);
+      return;
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setIsCrosswordBlurred(true);
+      }
+    };
+
+    const handleBlur = () => {
+      setIsCrosswordBlurred(true);
+    };
+
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, [gameModeType, view]);
+
   const handleStartCrossword = () => {
     if (crosswordResultToday) return;
 
@@ -1141,14 +1526,38 @@ if (!oppTermo || oppTermo === 0) {
     const dur = isVersus ? 5 : crosswordConfigDuration;
 
     const challenge = getCrosswordForDate(todayStr, diff, dur);
+
+    const savedKey = `crossword_progress_${todayStr}_${diff}_${dur}`;
+    const savedDataStr = localStorage.getItem(savedKey);
+    let initialCells = buildInitialCrosswordCells(challenge);
+    let initialSolvedIds: string[] = [];
+    let initialTime = 0;
+    let initialAssisted = false;
+    let initialAutocorrect = false;
+
+    if (savedDataStr) {
+      try {
+        const savedData = JSON.parse(savedDataStr);
+        if (savedData.cells) initialCells = savedData.cells;
+        if (savedData.solvedIds) initialSolvedIds = savedData.solvedIds;
+        if (savedData.time) initialTime = savedData.time;
+        if (savedData.assisted) initialAssisted = savedData.assisted;
+        if (savedData.autocorrect) initialAutocorrect = savedData.autocorrect;
+      } catch (e) {
+        console.error('Failed to load crossword autosave:', e);
+      }
+    }
+
     setGameModeType('crossword');
     setCrosswordChallenge(challenge);
     setTargetWords(challenge.entries.map(entry => entry.answer));
-    setCrosswordCells(buildInitialCrosswordCells(challenge));
+    setCrosswordCells(initialCells);
     setCrosswordSelectedId(challenge.entries[0]?.id || '1A');
-    setCrosswordSolvedIds([]);
-    setCrosswordMessage('');
-    setElapsedTime(0);
+    setCrosswordSolvedIds(initialSolvedIds);
+    setCrosswordAssisted(initialAssisted);
+    setCrosswordAutocorrect(initialAutocorrect);
+    setCrosswordMessage(savedDataStr ? 'Progresso restaurado.' : '');
+    setElapsedTime(initialTime);
     setModalScore(0);
     setShowGameModal(false);
     setTriggerConfetti(false);
@@ -1156,7 +1565,9 @@ if (!oppTermo || oppTermo === 0) {
 
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
-      setElapsedTime(prev => prev + 1);
+      if (!isCrosswordBlurredRef.current) {
+        setElapsedTime(prev => prev + 1);
+      }
     }, 1000);
   };
 
@@ -1168,6 +1579,12 @@ if (!oppTermo || oppTermo === 0) {
     detail: string,
     score: number
   ) => {
+    if (mode === 'crossword') {
+      const isVersus = activePlayer !== 'Ambos';
+      const diff = isVersus ? 'medio' : crosswordConfigDifficulty;
+      const dur = isVersus ? 5 : crosswordConfigDuration;
+      localStorage.removeItem(`crossword_progress_${todayStr}_${diff}_${dur}`);
+    }
     if (isTestMode) {
       if (timerRef.current) clearInterval(timerRef.current);
       const result: SpecialModeResult = {
@@ -1953,10 +2370,17 @@ if (!oppTermo || oppTermo === 0) {
     return `[${min}:${sec.toString().padStart(2, '0')}]`;
   };
 
-  // Versus Invite triggers
   const handleAcceptInvite = () => {
     setVersusInviteVisible(false);
     setVersusOpponentType('real');
+
+    if (opponentSelectedWordLengthOption) {
+      setWordLengthOption(opponentSelectedWordLengthOption as any);
+      localStorage.setItem('termo_word_length_option', opponentSelectedWordLengthOption);
+      const resolvedLen = resolveWordLength(opponentSelectedWordLengthOption, todayStr);
+      ensureWordsLoaded(resolvedLen).catch(() => {});
+    }
+
     if (multiplayerChannel) {
       multiplayerChannel.send({
         type: 'broadcast',
@@ -2084,7 +2508,7 @@ if (!oppTermo || oppTermo === 0) {
       multiplayerChannel.send({
         type: 'broadcast',
         event: 'invite',
-        payload: { from: activePlayer, to: opponentName }
+        payload: { from: activePlayer, to: opponentName, wordLengthOption }
       });
     } else {
       // Offline mode (Bot simulation fallback)
@@ -2113,7 +2537,7 @@ if (!oppTermo || oppTermo === 0) {
 
   // Generate Versus exclusive words
   const launchVersusMatch = async () => {
-    const vWords = await getVersusWordsForDate(todayStr);
+    const vWords = await getVersusWordsForDate(todayStr, wordLengthOption);
     setVersusWords(vWords);
 
     const vMatch = getVersusMatchForDate(todayStr);
@@ -3223,24 +3647,40 @@ if (!oppTermo || oppTermo === 0) {
       navigateGrid(key, 0, 1);
     } else if (event.key === 'Enter') {
       event.preventDefault();
-      validateCrosswordEntry(crosswordSelectedId);
+      if (isRebusInputActive) {
+        setIsRebusInputActive(false);
+        advanceCrosswordFocus(key, 'forward');
+      } else {
+        validateCrosswordEntry(crosswordSelectedId);
+      }
+    } else if (event.key === 'Escape' || event.key === 'Insert') {
+      event.preventDefault();
+      setIsRebusInputActive(prev => !prev);
     }
   };
 
   const handleCrosswordCellChange = (key: string, value: string) => {
-    const nextValue = value.toUpperCase().replace(/[^A-Z]/g, '').slice(-1);
-    setCrosswordCells(prev => ({ ...prev, [key]: nextValue }));
+    const nextValue = value.toUpperCase().replace(/[^A-Z]/g, '');
+    const finalValue = isRebusInputActive ? nextValue : nextValue.slice(-1);
+    setCrosswordCells(prev => ({ ...prev, [key]: finalValue }));
     setCrosswordMessage('');
-    if (nextValue) {
+    if (finalValue && !isRebusInputActive) {
       setTimeout(() => advanceCrosswordFocus(key, 'forward'), 10);
     }
   };
 
   const handleCrosswordCharInput = (char: string) => {
     if (!crosswordFocusedKey) return;
-    setCrosswordCells(prev => ({ ...prev, [crosswordFocusedKey]: char.toUpperCase() }));
+    setCrosswordCells(prev => {
+      const current = prev[crosswordFocusedKey] || '';
+      const newVal = isRebusInputActive ? (current + char) : char;
+      const finalVal = isRebusInputActive ? newVal.slice(0, 12) : char;
+      return { ...prev, [crosswordFocusedKey]: finalVal.toUpperCase() };
+    });
     setCrosswordMessage('');
-    setTimeout(() => advanceCrosswordFocus(crosswordFocusedKey, 'forward'), 10);
+    if (!isRebusInputActive) {
+      setTimeout(() => advanceCrosswordFocus(crosswordFocusedKey, 'forward'), 10);
+    }
   };
 
   const handleCrosswordDeleteInput = () => {
@@ -3305,9 +3745,22 @@ if (!oppTermo || oppTermo === 0) {
       const diffMultiplier = activeDiff === 'facil' ? 0.8 : activeDiff === 'dificil' ? 1.3 : 1.0;
       const basePoints = activeDur === 2 ? 120 : activeDur === 10 ? 400 : 240;
       const minPoints = activeDur === 2 ? 20 : activeDur === 10 ? 60 : 40;
-      const score = Math.max(minPoints, Math.floor((basePoints - Math.floor(elapsedTime / 2)) * diffMultiplier));
+      let score = Math.max(minPoints, Math.floor((basePoints - Math.floor(elapsedTime / 2)) * diffMultiplier));
+      if (crosswordAssisted) {
+        score = Math.floor(score / 2);
+      }
 
-      finishSpecialMode('crossword', true, nextSolvedIds.length, nextSolvedIds.length, 'Grade completa.', score);
+      // Clear autosave progress
+      localStorage.removeItem(`crossword_progress_${todayStr}_${activeDiff}_${activeDur}`);
+
+      finishSpecialMode(
+        'crossword', 
+        true, 
+        nextSolvedIds.length, 
+        nextSolvedIds.length, 
+        crosswordAssisted ? 'Grade completa (com ajuda).' : 'Grade completa.', 
+        score
+      );
     }
   };
 
@@ -3333,6 +3786,11 @@ if (!oppTermo || oppTermo === 0) {
           <div className="invite-alert-title">⚔️ Convite Recebido!</div>
           <div className="invite-alert-text">
             <strong>{opponentName}</strong> convidou você para o Duelo do Dia.
+            {opponentSelectedWordLengthOption && (
+              <div style={{ fontSize: '0.75rem', marginTop: '0.4rem', color: 'var(--accent-cyan)', fontWeight: 'bold' }}>
+                Tamanho escolhido: {opponentSelectedWordLengthOption === 'aleatorio' ? '🎲 Aleatório' : `${opponentSelectedWordLengthOption} Letras`}
+              </div>
+            )}
           </div>
           <div className="invite-alert-buttons">
             <button className="invite-alert-btn accept" onClick={handleAcceptInvite}>
@@ -3955,6 +4413,74 @@ if (!oppTermo || oppTermo === 0) {
               {activePlayer === 'Ambos'
                 ? 'Modo Cooperativo ativo. Vocês podem jogar os desafios diários juntos ou disputar uma corrida Blitz!'
                 : 'Modo Duelo Versus ativo. Desafie o outro jogador para disputar quem se sai melhor hoje!'}
+            </p>
+          </div>
+
+          {/* Word Length Selector */}
+          <div className="dashboard-panel word-length-panel" style={{
+            marginBottom: '2rem',
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.01), rgba(255,255,255,0.03))',
+            border: '1px solid var(--glass-border)',
+            borderRadius: '16px',
+            padding: '1.25rem',
+            textAlign: 'left'
+          }}>
+            <h3 style={{
+              marginTop: 0,
+              marginBottom: '1rem',
+              fontSize: '0.95rem',
+              fontWeight: 'bold',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              color: 'var(--text-secondary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              📏 Tamanho das Palavras (Termo, Dueto, Quarteto)
+            </h3>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
+              gap: '0.6rem'
+            }}>
+              {(['4', '5', '6', '7', '8', 'aleatorio'] as const).map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  style={{
+                    padding: '0.75rem 0.5rem',
+                    borderRadius: '10px',
+                    border: '1px solid var(--glass-border)',
+                    background: wordLengthOption === opt
+                      ? 'linear-gradient(135deg, var(--accent-cyan), #3b82f6)'
+                      : 'rgba(255,255,255,0.03)',
+                    color: wordLengthOption === opt ? '#000' : 'white',
+                    fontWeight: 'bold',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: wordLengthOption === opt ? '0 0 12px rgba(6, 182, 212, 0.45)' : 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.3rem'
+                  }}
+                  onClick={() => handleWordLengthOptionChange(opt)}
+                >
+                  {opt === 'aleatorio' ? '🎲 Aleatório' : `${opt} Letras`}
+                </button>
+              ))}
+            </div>
+            <p style={{
+              fontSize: '0.75rem',
+              color: 'var(--text-muted)',
+              marginTop: '0.75rem',
+              marginBottom: 0
+            }}>
+              {wordLengthOption === 'aleatorio'
+                ? '🎲 Modo Aleatório ativo: as palavras terão um tamanho surpresa igual para todos os tabuleiros da partida!'
+                : `📏 As palavras da partida terão exatamente ${wordLengthOption} letras nos tabuleiros do Termo, Dueto e Quarteto.`}
             </p>
           </div>
 
@@ -4862,6 +5388,14 @@ if (!oppTermo || oppTermo === 0) {
                 <>
                   <Clock size={18} color="var(--accent-cyan)" />
                   {formatTime(elapsedTime)}
+                  {gameModeType === 'crossword' && crosswordAssisted && (
+                    <span 
+                      style={{ marginLeft: '0.4rem', color: '#f59e0b', cursor: 'help' }} 
+                      title="Partida com assistência (ranking suspenso)"
+                    >
+                      ⚠️
+                    </span>
+                  )}
                 </>
               )}
             </div>
@@ -4898,6 +5432,17 @@ if (!oppTermo || oppTermo === 0) {
 
           {gameModeType === 'crossword' && crosswordChallenge ? (
             <div className="crossword-layout-container">
+              {isCrosswordBlurred && (
+                <div className="crossword-pause-overlay" onClick={() => setIsCrosswordBlurred(false)}>
+                  <div className="crossword-pause-card" onClick={e => e.stopPropagation()}>
+                    <h3>Jogo Pausado</h3>
+                    <p>O tempo está parado. Clique abaixo ou no fundo para retomar a partida.</p>
+                    <button className="crossword-resume-btn" onClick={() => setIsCrosswordBlurred(false)}>
+                      Retomar Partida
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="crossword-layout">
                 <div className="crossword-grid" style={{ gridTemplateColumns: `repeat(${crosswordChallenge.size}, 1fr)` }}>
                   {Array.from({ length: crosswordChallenge.size * crosswordChallenge.size }).map((_, index) => {
@@ -4905,15 +5450,19 @@ if (!oppTermo || oppTermo === 0) {
                     const col = index % crosswordChallenge.size;
                     const meta = getCrosswordCellMeta(row, col);
                     const solved = !!meta?.entries.every(entry => crosswordSolvedIds.includes(entry.id));
+                    const cellValue = meta ? (crosswordCells[meta.key] || '') : '';
+                    const correctValue = meta ? getCorrectCrosswordCharForCell(meta.key) : '';
+                    const isIncorrect = crosswordAutocorrect && cellValue && cellValue !== correctValue;
+
                     return meta ? (
                       <label
                         key={meta.key}
-                        className={`crossword-cell ${solved ? 'solved' : ''} ${isCellInActiveClue(row, col) ? 'active-word' : ''} ${crosswordFocusedKey === meta.key ? 'focused' : ''}`}
+                        className={`crossword-cell ${solved ? 'solved' : ''} ${isCellInActiveClue(row, col) ? 'active-word' : ''} ${isCellInCrossReference(row, col) ? 'ref-word' : ''} ${crosswordFocusedKey === meta.key ? 'focused' : ''} ${isIncorrect ? 'incorrect' : ''}`}
                       >
                         {meta.number && <span>{meta.number}</span>}
                         <input
                           id={`crossword-cell-${meta.key}`}
-                          value={crosswordCells[meta.key] || ''}
+                          value={cellValue}
                           onFocus={() => {
                             setCrosswordFocusedKey(meta.key);
                             selectClueForCell(meta.key);
@@ -4921,7 +5470,7 @@ if (!oppTermo || oppTermo === 0) {
                           onClick={() => handleCellClick(meta.key)}
                           onKeyDown={(event) => handleCrosswordKeyDown(meta.key, event)}
                           onChange={(event) => handleCrosswordCellChange(meta.key, event.target.value)}
-                          maxLength={1}
+                          maxLength={isRebusInputActive ? 12 : 1}
                           autoComplete="off"
                         />
                       </label>
@@ -4957,7 +5506,7 @@ if (!oppTermo || oppTermo === 0) {
                                 <span className="clue-id-badge">{entry.id.replace(/[AD]/g, '')}</span>
                                 <span className="clue-type-badge">{entry.clueType}</span>
                               </div>
-                              <strong>{entry.clue}</strong>
+                              <strong>{renderClueTextWithLinks(entry.clue)}</strong>
                             </button>
                           ))}
                       </div>
@@ -4983,7 +5532,7 @@ if (!oppTermo || oppTermo === 0) {
                                 <span className="clue-id-badge">{entry.id.replace(/[AD]/g, '')}</span>
                                 <span className="clue-type-badge">{entry.clueType}</span>
                               </div>
-                              <strong>{entry.clue}</strong>
+                              <strong>{renderClueTextWithLinks(entry.clue)}</strong>
                             </button>
                           ))}
                       </div>
@@ -4991,6 +5540,57 @@ if (!oppTermo || oppTermo === 0) {
                   </div>
 
                   {crosswordMessage && <div className="crossword-message">{crosswordMessage}</div>}
+
+                  {/* Controls & Assistance Toolbar */}
+                  <div className="crossword-controls-container" style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                      <button
+                        type="button"
+                        className={`crossword-control-toggle-btn ${isRebusInputActive ? 'active' : ''}`}
+                        onClick={() => setIsRebusInputActive(!isRebusInputActive)}
+                        title="Permite digitar mais de uma letra no mesmo quadrado"
+                        style={{ flex: 1 }}
+                      >
+                        🧩 Rebus: {isRebusInputActive ? 'ATIVO' : 'INATIVO'}
+                      </button>
+                      <button
+                        type="button"
+                        className={`crossword-control-toggle-btn ${crosswordAutocorrect ? 'active' : ''}`}
+                        onClick={() => setCrosswordAutocorrect(!crosswordAutocorrect)}
+                        title="Marca imediatamente letras incorretas em vermelho"
+                        style={{ flex: 1 }}
+                      >
+                        ⚡ Corretor: {crosswordAutocorrect ? 'ATIVO' : 'INATIVO'}
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                      <button
+                        type="button"
+                        className="crossword-assist-btn"
+                        onClick={handleRevealLetter}
+                        title="Revela a letra correta para o quadrado selecionado"
+                      >
+                        🔍 Letra
+                      </button>
+                      <button
+                        type="button"
+                        className="crossword-assist-btn"
+                        onClick={handleRevealWord}
+                        title="Revela a resposta correta para a palavra selecionada"
+                      >
+                        📖 Palavra
+                      </button>
+                      <button
+                        type="button"
+                        className="crossword-assist-btn"
+                        onClick={handleRevealGrid}
+                        title="Revela todo o tabuleiro de palavras cruzadas"
+                      >
+                        👑 Grade
+                      </button>
+                    </div>
+                  </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
                     <button className="modal-close-btn" style={{ margin: 0 }} onClick={() => validateCrosswordEntry(crosswordSelectedId)}>
@@ -5337,9 +5937,14 @@ if (!oppTermo || oppTermo === 0) {
                   ))}
                 </div>
 
-                <button className="modal-close-btn" onClick={handleBackToDashboard}>
-                  Voltar ao Dashboard
-                </button>
+                <div style={{ display: 'flex', gap: '1rem', width: '100%', marginTop: '1.25rem' }}>
+                  <button className="modal-share-btn" style={{ flex: 1 }} onClick={handleShareResult}>
+                    Compartilhar 📤
+                  </button>
+                  <button className="modal-close-btn" style={{ flex: 1, margin: 0 }} onClick={handleBackToDashboard}>
+                    Voltar ao Dashboard
+                  </button>
+                </div>
               </div>
             </div>
           )}
