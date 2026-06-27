@@ -1,4 +1,4 @@
-import { type DailyWords, FALLBACK_WORDS_BY_LENGTH, generateWordsBatch, normalizeWord } from './grokService';
+import { type DailyWords, FALLBACK_WORDS_BY_LENGTH, generateWordsBatch, normalizeWord, fetchCrosswordClues } from './grokService';
 import { supabase } from './supabaseClient';
 
 export interface ModeResult {
@@ -1169,6 +1169,16 @@ const CROSSWORD_TEMPLATES: Record<string, CrosswordChallenge> = {
       { id: '4A', answer: 'REI', row: 4, col: 2, direction: 'across', clue: 'Monarca que lidera um reino.', clueType: 'direta' }
     ]
   },
+  facil_2_alt: {
+    date: '',
+    size: 6,
+    entries: [
+      { id: '1A', answer: 'BOLO', row: 1, col: 1, direction: 'across', clue: 'Doce assado no forno, comum em festas de aniversário.', clueType: 'direta' },
+      { id: '2D', answer: 'OURO', row: 1, col: 2, direction: 'down', clue: 'Metal precioso amarelo brilhante usado em alianças.', clueType: 'direta' },
+      { id: '3A', answer: 'ARTE', row: 3, col: 1, direction: 'across', clue: 'Pintura, música ou escultura que expressa a criatividade humana.', clueType: 'direta' },
+      { id: '4A', answer: 'OVO', row: 4, col: 2, direction: 'across', clue: 'Alimento da galinha que tem gema e clara.', clueType: 'direta' }
+    ]
+  },
   facil_5: {
     date: '',
     size: 9,
@@ -1176,8 +1186,19 @@ const CROSSWORD_TEMPLATES: Record<string, CrosswordChallenge> = {
       { id: '1A', answer: 'GATO', row: 1, col: 1, direction: 'across', clue: 'Pequeno felino doméstico que mia.', clueType: 'direta' },
       { id: '2D', answer: 'TERRA', row: 1, col: 3, direction: 'down', clue: 'O planeta habitado por seres humanos.', clueType: 'direta' },
       { id: '3A', answer: 'RATO', row: 3, col: 3, direction: 'across', clue: 'Pequeno roedor que costuma roer coisas.', clueType: 'direta' },
-      { id: '4D', answer: 'AMIGO', row: 3, col: 6, direction: 'down', clue: 'Pessoa com quem se tem afeição companheira.', clueType: 'direta' },
+      { id: '4D', answer: 'OMBRO', row: 3, col: 6, direction: 'down', clue: 'Parte do corpo que conecta o braço ao tronco.', clueType: 'direta' },
       { id: '5A', answer: 'MAU', row: 4, col: 6, direction: 'across', clue: 'Aquele que pratica maldades.', clueType: 'direta' }
+    ]
+  },
+  facil_5_alt: {
+    date: '',
+    size: 9,
+    entries: [
+      { id: '1A', answer: 'FOGO', row: 1, col: 1, direction: 'across', clue: 'Elemento quente que queima madeira e produz fumaça.', clueType: 'direta' },
+      { id: '2D', answer: 'GRATO', row: 1, col: 3, direction: 'down', clue: 'Sentimento de quem agradece por um favor ou benefício.', clueType: 'direta' },
+      { id: '3A', answer: 'AMOR', row: 3, col: 3, direction: 'across', clue: 'Sentimento mais bonito que une casais e famílias.', clueType: 'direta' },
+      { id: '4D', answer: 'ROSTO', row: 3, col: 6, direction: 'down', clue: 'A face humana, onde ficam os olhos e a boca.', clueType: 'direta' },
+      { id: '5A', answer: 'OVO', row: 4, col: 6, direction: 'across', clue: 'Alimento redondo com gema e clara produzido pelas galinhas.', clueType: 'direta' }
     ]
   },
   facil_10: {
@@ -1193,6 +1214,19 @@ const CROSSWORD_TEMPLATES: Record<string, CrosswordChallenge> = {
       { id: '7A', answer: 'LUA', row: 9, col: 7, direction: 'across', clue: 'Satélite natural da Terra que brilha à noite.', clueType: 'direta' }
     ]
   },
+  facil_10_alt: {
+    date: '',
+    size: 11,
+    entries: [
+      { id: '1A', answer: 'VENTO', row: 1, col: 1, direction: 'across', clue: 'Ar em movimento que refresca nos dias quentes.', clueType: 'direta' },
+      { id: '2D', answer: 'NETO', row: 1, col: 3, direction: 'down', clue: 'Filho do filho ou da filha em relação aos avós.', clueType: 'direta' },
+      { id: '3A', answer: 'TIO', row: 3, col: 3, direction: 'across', clue: 'Irmão do pai ou da mãe de uma pessoa.', clueType: 'direta' },
+      { id: '4D', answer: 'OESTE', row: 3, col: 5, direction: 'down', clue: 'Ponto cardeal onde o sol se põe no fim do dia.', clueType: 'direta' },
+      { id: '5A', answer: 'TUA', row: 6, col: 5, direction: 'across', clue: 'Pronome possessivo feminino associado à segunda pessoa.', clueType: 'direta' },
+      { id: '6D', answer: 'AMAR', row: 6, col: 7, direction: 'down', clue: 'Sentimento de afeto profundo por alguém.', clueType: 'direta' },
+      { id: '7A', answer: 'RIO', row: 9, col: 7, direction: 'across', clue: 'Curso de água natural que corre em direção ao mar.', clueType: 'direta' }
+    ]
+  },
   medio_2: {
     date: '',
     size: 6,
@@ -1203,6 +1237,16 @@ const CROSSWORD_TEMPLATES: Record<string, CrosswordChallenge> = {
       { id: '4A', answer: 'REI', row: 4, col: 2, direction: 'across', clue: 'Usa coroa, senta no trono e vive no castelo.', clueType: 'contextual' }
     ]
   },
+  medio_2_alt: {
+    date: '',
+    size: 6,
+    entries: [
+      { id: '1A', answer: 'BOLO', row: 1, col: 1, direction: 'across', clue: 'Massa doce batida e assada, frequentemente recheada ou coberta.', clueType: 'contextual' },
+      { id: '2D', answer: 'OURO', row: 1, col: 2, direction: 'down', clue: 'Elemento químico de transição cobiçado por reis e alquimistas.', clueType: 'contextual' },
+      { id: '3A', answer: 'ARTE', row: 3, col: 1, direction: 'across', clue: 'Manifestação estética humana que desperta reflexão e emoção.', clueType: 'contextual' },
+      { id: '4A', answer: 'OVO', row: 4, col: 2, direction: 'across', clue: 'Estrutura reprodutiva das aves, ingrediente base na culinária.', clueType: 'contextual' }
+    ]
+  },
   medio_5: {
     date: '',
     size: 9,
@@ -1210,8 +1254,19 @@ const CROSSWORD_TEMPLATES: Record<string, CrosswordChallenge> = {
       { id: '1A', answer: 'GATO', row: 1, col: 1, direction: 'across', clue: 'Gosta de deitar no sol e persegue ratos.', clueType: 'contextual' },
       { id: '2D', answer: 'TERRA', row: 1, col: 3, direction: 'down', clue: 'O planeta azul onde nós todos moramos.', clueType: 'contextual' },
       { id: '3A', answer: 'RATO', row: 3, col: 3, direction: 'across', clue: 'Roedor cinzento que adora comer queijo.', clueType: 'contextual' },
-      { id: '4D', answer: 'AMIGO', row: 3, col: 6, direction: 'down', clue: 'Aquele que é como um irmão de outra mãe.', clueType: 'contextual' },
+      { id: '4D', answer: 'OMBRO', row: 3, col: 6, direction: 'down', clue: 'Articulação onde apoiamos o choro de alguém ou uma mochila.', clueType: 'contextual' },
       { id: '5A', answer: 'MAU', row: 4, col: 6, direction: 'across', clue: 'O antônimo de uma pessoa bondosa.', clueType: 'contextual' }
+    ]
+  },
+  medio_5_alt: {
+    date: '',
+    size: 9,
+    entries: [
+      { id: '1A', answer: 'FOGO', row: 1, col: 1, direction: 'across', clue: 'Entidade térmica que consome oxigênio e gera cinzas.', clueType: 'contextual' },
+      { id: '2D', answer: 'GRATO', row: 1, col: 3, direction: 'down', clue: 'Adjetivo para quem reconhece e valoriza o bem recebido.', clueType: 'contextual' },
+      { id: '3A', answer: 'AMOR', row: 3, col: 3, direction: 'across', clue: 'O afeto que move poetas e mantém a humanidade unida.', clueType: 'contextual' },
+      { id: '4D', answer: 'ROSTO', row: 3, col: 6, direction: 'down', clue: 'Cartão de visitas anatômico que expressa nossas emoções.', clueType: 'contextual' },
+      { id: '5A', answer: 'OVO', row: 4, col: 6, direction: 'across', clue: 'Origem biológica de aves e répteis, rico em proteínas.', clueType: 'contextual' }
     ]
   },
   medio_10: {
@@ -1227,6 +1282,19 @@ const CROSSWORD_TEMPLATES: Record<string, CrosswordChallenge> = {
       { id: '7A', answer: 'LUA', row: 9, col: 7, direction: 'across', clue: 'Muda de fase toda semana e guia os namorados.', clueType: 'contextual' }
     ]
   },
+  medio_10_alt: {
+    date: '',
+    size: 11,
+    entries: [
+      { id: '1A', answer: 'VENTO', row: 1, col: 1, direction: 'across', clue: 'Corrente aérea atmosférica gerada por diferenças de pressão.', clueType: 'contextual' },
+      { id: '2D', answer: 'NETO', row: 1, col: 3, direction: 'down', clue: 'Descendente direto de segunda geração na linha familiar.', clueType: 'contextual' },
+      { id: '3A', answer: 'TIO', row: 3, col: 3, direction: 'across', clue: 'Parente colateral consanguíneo de terceiro grau.', clueType: 'contextual' },
+      { id: '4D', answer: 'OESTE', row: 3, col: 5, direction: 'down', clue: 'Direção do horizonte ocidental, oposta ao leste.', clueType: 'contextual' },
+      { id: '5A', answer: 'TUA', row: 6, col: 5, direction: 'across', clue: 'Pronome possessivo que indica posse da pessoa com quem se fala.', clueType: 'contextual' },
+      { id: '6D', answer: 'AMAR', row: 6, col: 7, direction: 'down', clue: 'Desejar o bem absoluto do outro acima do próprio interesse.', clueType: 'contextual' },
+      { id: '7A', answer: 'RIO', row: 9, col: 7, direction: 'across', clue: 'Fluxo contínuo de água doce que esculpe vales no relevo.', clueType: 'contextual' }
+    ]
+  },
   dificil_2: {
     date: '',
     size: 6,
@@ -1237,6 +1305,16 @@ const CROSSWORD_TEMPLATES: Record<string, CrosswordChallenge> = {
       { id: '4A', answer: 'REI', row: 4, col: 2, direction: 'across', clue: 'Tira a paz do próprio crânio em troca de uma coroa.', clueType: 'enigmatica' }
     ]
   },
+  dificil_2_alt: {
+    date: '',
+    size: 6,
+    entries: [
+      { id: '1A', answer: 'BOLO', row: 1, col: 1, direction: 'across', clue: 'Alquimia de trigo, açúcar e fogo para celebrar ciclos e afetos.', clueType: 'enigmatica' },
+      { id: '2D', answer: 'OURO', row: 1, col: 2, direction: 'down', clue: 'O sol solidificado na terra, motor de impérios e ambições.', clueType: 'enigmatica' },
+      { id: '3A', answer: 'ARTE', row: 3, col: 1, direction: 'across', clue: 'A mentira que nos ajuda a compreender a verdade da vida.', clueType: 'enigmatica' },
+      { id: '4A', answer: 'OVO', row: 4, col: 2, direction: 'across', clue: 'Frágil elipse que guarda em si o germe silencioso da vida.', clueType: 'enigmatica' }
+    ]
+  },
   dificil_5: {
     date: '',
     size: 9,
@@ -1244,8 +1322,19 @@ const CROSSWORD_TEMPLATES: Record<string, CrosswordChallenge> = {
       { id: '1A', answer: 'GATO', row: 1, col: 1, direction: 'across', clue: 'Pequena pantera silenciosa que governa os sofás.', clueType: 'enigmatica' },
       { id: '2D', answer: 'TERRA', row: 1, col: 3, direction: 'down', clue: 'Vastidão de argila e água girando no infinito escuro.', clueType: 'enigmatica' },
       { id: '3A', answer: 'RATO', row: 3, col: 3, direction: 'across', clue: 'O primeiro passageiro a desembarcar do barco trágico.', clueType: 'enigmatica' },
-      { id: '4D', answer: 'AMIGO', row: 3, col: 6, direction: 'down', clue: 'Espelho da nossa alma que diz verdades cruas com afeto.', clueType: 'enigmatica' },
+      { id: '4D', answer: 'OMBRO', row: 3, col: 6, direction: 'down', clue: 'Suporte anatômico para o peso do mundo ou as lágrimas alheias.', clueType: 'enigmatica' },
       { id: '5A', answer: 'MAU', row: 4, col: 6, direction: 'across', clue: 'A força da ausência de luz na conduta humana.', clueType: 'enigmatica' }
+    ]
+  },
+  dificil_5_alt: {
+    date: '',
+    size: 9,
+    entries: [
+      { id: '1A', answer: 'FOGO', row: 1, col: 1, direction: 'across', clue: 'Chama devoradora que ilumina o escuro e reduz reinos a cinzas.', clueType: 'enigmatica' },
+      { id: '2D', answer: 'GRATO', row: 1, col: 3, direction: 'down', clue: 'Aquele que responde ao favor alheio com a memória do coração.', clueType: 'enigmatica' },
+      { id: '3A', answer: 'AMOR', row: 3, col: 3, direction: 'across', clue: 'Labirinto emocional onde o ego se perde e a alma se encontra.', clueType: 'enigmatica' },
+      { id: '4D', answer: 'ROSTO', row: 3, col: 6, direction: 'down', clue: 'A máscara de carne e osso que usamos para encarar o espelho do mundo.', clueType: 'enigmatica' },
+      { id: '5A', answer: 'OVO', row: 4, col: 6, direction: 'across', clue: 'Cápsula de calcário que encerra o mistério da vida em gestação.', clueType: 'enigmatica' }
     ]
   },
   dificil_10: {
@@ -1260,15 +1349,150 @@ const CROSSWORD_TEMPLATES: Record<string, CrosswordChallenge> = {
       { id: '6D', answer: 'AZUL', row: 6, col: 7, direction: 'down', clue: 'A cor do manto celeste e da melancolia dos poetas.', clueType: 'enigmatica' },
       { id: '7A', answer: 'LUA', row: 9, col: 7, direction: 'across', clue: 'A lanterna dos loucos, poetas e lobos solitários.', clueType: 'enigmatica' }
     ]
+  },
+  dificil_10_alt: {
+    date: '',
+    size: 11,
+    entries: [
+      { id: '1A', answer: 'VENTO', row: 1, col: 1, direction: 'across', clue: 'Mensageiro invisível que espalha sementes e desfaz nuvens.', clueType: 'enigmatica' },
+      { id: '2D', answer: 'NETO', row: 1, col: 3, direction: 'down', clue: 'A semente da nossa semente que floresce no amanhã.', clueType: 'enigmatica' },
+      { id: '3A', answer: 'TIO', row: 3, col: 3, direction: 'across', clue: 'Guardião secundário que compartilha o sangue sem o peso da criação.', clueType: 'enigmatica' },
+      { id: '4D', answer: 'OESTE', row: 3, col: 5, direction: 'down', clue: 'O crepúsculo geográfico onde a luz do sol deita e morre.', clueType: 'enigmatica' },
+      { id: '5A', answer: 'TUA', row: 6, col: 5, direction: 'across', clue: 'Designação linguística do que pertence a ti no teatro da vida.', clueType: 'enigmatica' },
+      { id: '6D', answer: 'AMAR', row: 6, col: 7, direction: 'down', clue: 'A única força capaz de vencer a solidão existencial humana.', clueType: 'enigmatica' },
+      { id: '7A', answer: 'RIO', row: 9, col: 7, direction: 'across', clue: 'Veia líquida da terra que corre obstinadamente para se perder no oceano.', clueType: 'enigmatica' }
+    ]
   }
 };
 
-export function getCrosswordForDate(dateStr: string, difficulty: 'facil' | 'medio' | 'dificil' = 'medio', duration: number = 5): CrosswordChallenge {
-  initLocalStorage();
-  const templateKey = `${difficulty}_${duration}`;
-  const template = CROSSWORD_TEMPLATES[templateKey] || CROSSWORD_TEMPLATES['medio_5'];
+interface Slot {
+  id: string;
+  row: number;
+  col: number;
+  direction: 'across' | 'down';
+  length: number;
+}
+
+interface Intersection {
+  otherSlotIndex: number;
+  myIndex: number;
+  otherIndex: number;
+}
+
+function computeIntersections(slots: Slot[]): Intersection[][] {
+  const intersections: Intersection[][] = slots.map(() => []);
   
-  return {
+  for (let i = 0; i < slots.length; i++) {
+    const s1 = slots[i];
+    const s1Cells: { r: number; c: number; charIdx: number }[] = [];
+    for (let k = 0; k < s1.length; k++) {
+      s1Cells.push({
+        r: s1.row + (s1.direction === 'down' ? k : 0),
+        c: s1.col + (s1.direction === 'across' ? k : 0),
+        charIdx: k
+      });
+    }
+
+    for (let j = 0; j < slots.length; j++) {
+      if (i === j) continue;
+      const s2 = slots[j];
+      const s2Cells: { r: number; c: number; charIdx: number }[] = [];
+      for (let m = 0; m < s2.length; m++) {
+        s2Cells.push({
+          r: s2.row + (s2.direction === 'down' ? m : 0),
+          c: s2.col + (s2.direction === 'across' ? m : 0),
+          charIdx: m
+        });
+      }
+
+      for (const cell1 of s1Cells) {
+        for (const cell2 of s2Cells) {
+          if (cell1.r === cell2.r && cell1.c === cell2.c) {
+            intersections[i].push({
+              otherSlotIndex: j,
+              myIndex: cell1.charIdx,
+              otherIndex: cell2.charIdx
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return intersections;
+}
+
+let solveCalls = 0;
+function solveCrosswordCSP(
+  slots: Slot[],
+  intersections: Intersection[][],
+  wordsByLength: Record<number, string[]>,
+  assigned: string[] = []
+): string[] | null {
+  solveCalls++;
+  if (solveCalls > 15000) {
+    return null;
+  }
+  
+  if (assigned.length === slots.length) {
+    return assigned;
+  }
+
+  const currentIdx = assigned.length;
+  const slot = slots[currentIdx];
+  const candidates = wordsByLength[slot.length] || [];
+
+  for (const word of candidates) {
+    if (assigned.includes(word)) {
+      continue;
+    }
+
+    let isCompatible = true;
+    for (const inter of intersections[currentIdx]) {
+      if (inter.otherSlotIndex < assigned.length) {
+        const otherWord = assigned[inter.otherSlotIndex];
+        if (word[inter.myIndex] !== otherWord[inter.otherIndex]) {
+          isCompatible = false;
+          break;
+        }
+      }
+    }
+
+    if (isCompatible) {
+      assigned.push(word);
+      const result = solveCrosswordCSP(slots, intersections, wordsByLength, assigned);
+      if (result) {
+        return result;
+      }
+      assigned.pop();
+    }
+  }
+
+  return null;
+}
+
+export async function getCrosswordForDate(
+  dateStr: string,
+  difficulty: 'facil' | 'medio' | 'dificil' = 'medio',
+  duration: number = 5
+): Promise<CrosswordChallenge> {
+  initLocalStorage();
+  const cacheKey = `termo_generated_crossword_${dateStr}_${difficulty}_${duration}`;
+  const cached = localStorage.getItem(cacheKey);
+  if (cached) {
+    try {
+      return JSON.parse(cached);
+    } catch (e) {
+      console.error('Failed to parse cached crossword:', e);
+    }
+  }
+
+  const seed = getSeedForDate(dateStr + "_crossword");
+  const useAlt = seed % 2 === 1;
+  const templateKey = useAlt ? `${difficulty}_${duration}_alt` : `${difficulty}_${duration}`;
+  const template = CROSSWORD_TEMPLATES[templateKey] || CROSSWORD_TEMPLATES[`${difficulty}_${duration}`] || CROSSWORD_TEMPLATES['medio_5'];
+
+  const fallbackResult: CrosswordChallenge = {
     date: dateStr,
     size: template.size,
     entries: template.entries.map(entry => ({
@@ -1276,6 +1500,72 @@ export function getCrosswordForDate(dateStr: string, difficulty: 'facil' | 'medi
       direction: entry.direction as 'across' | 'down'
     }))
   };
+
+  try {
+    const slots: Slot[] = template.entries.map(entry => ({
+      id: entry.id,
+      row: entry.row,
+      col: entry.col,
+      direction: entry.direction as 'across' | 'down',
+      length: entry.answer.length
+    }));
+
+    const intersections = computeIntersections(slots);
+    const uniqueLengths = Array.from(new Set(slots.map(s => s.length)));
+    const wordsByLength: Record<number, string[]> = {};
+
+    for (const len of uniqueLengths) {
+      const lenSeed = getSeedForDate(dateStr + "_crossword_len" + len);
+      const dbWords = await selectSupabaseWords(len, 150, lenSeed);
+      wordsByLength[len] = dbWords.map(dw => dw.word.toUpperCase());
+    }
+
+    solveCalls = 0;
+    const solution = solveCrosswordCSP(slots, intersections, wordsByLength);
+
+    if (!solution) {
+      console.warn("CSP solver could not find a layout solution. Falling back to static template.");
+      return fallbackResult;
+    }
+
+    try {
+      const pistas = await fetchCrosswordClues(solution, difficulty);
+      
+      const newEntries = slots.map((slot, idx) => {
+        const ans = solution[idx];
+        let clue = pistas[ans];
+        if (!clue) {
+          const originalMatching = template.entries.find(e => e.answer === ans);
+          clue = originalMatching?.clue || `Palavra de ${slot.length} letras.`;
+        }
+        
+        return {
+          id: slot.id,
+          answer: ans,
+          row: slot.row,
+          col: slot.col,
+          direction: slot.direction,
+          clue: clue,
+          clueType: (difficulty === 'facil' ? 'direta' : difficulty === 'medio' ? 'contextual' : 'enigmatica') as 'direta' | 'contextual' | 'enigmatica'
+        };
+      });
+
+      const generatedChallenge: CrosswordChallenge = {
+        date: dateStr,
+        size: template.size,
+        entries: newEntries
+      };
+
+      localStorage.setItem(cacheKey, JSON.stringify(generatedChallenge));
+      return generatedChallenge;
+    } catch (clueErr) {
+      console.warn("Failed to generate clues via Groq. Falling back to static template.", clueErr);
+      return fallbackResult;
+    }
+  } catch (err) {
+    console.error("Failed to generate dynamic crossword. Falling back to static template.", err);
+    return fallbackResult;
+  }
 }
 
 export function getSpecialResultForDate(

@@ -224,3 +224,85 @@ Não gere nenhuma destas palavras existentes se possível: ${sampleExisting.join
     throw new Error('Parsed response does not contain "words" array');
   }
 }
+
+export async function fetchCrosswordClues(
+  words: string[],
+  difficulty: 'facil' | 'medio' | 'dificil'
+): Promise<Record<string, string>> {
+  const apiKey = getGroqApiKey();
+  
+  let clueStyle = '';
+  let example = '';
+  if (difficulty === 'facil') {
+    clueStyle = 'direta, simples e factual';
+    example = 'ex: "Pequeno felino doméstico que mia" para GATO';
+  } else if (difficulty === 'medio') {
+    clueStyle = 'de nível médio, que descreve o conceito de forma mais contextual ou criativa com pensamento lateral moderado';
+    example = 'ex: "Gosta de deitar no sol e persegue ratos" para GATO';
+  } else {
+    clueStyle = 'enigmática, com forte pensamento lateral, metáforas poéticas, charadas ou jogos de palavras desafiadores';
+    example = 'ex: "Pequena pantera silenciosa que governa os sofás" para GATO';
+  }
+
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        temperature: 0.8,
+        max_tokens: 800,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: 'system',
+            content: `Você é um gerador de pistas para um jogo de palavras cruzadas em português do Brasil.
+Você receberá um array de palavras e deverá gerar exatamente uma pista para cada palavra seguindo o estilo solicitado.
+Estilo de pistas: ${clueStyle} (${example}).
+Retorne estritamente um objeto JSON no seguinte formato:
+{
+  "pistas": {
+    "PALAVRA1": "Pista gerada 1",
+    "PALAVRA2": "Pista gerada 2",
+    ...
+  }
+}
+Não inclua nenhuma outra resposta além do JSON.`
+          },
+          {
+            role: 'user',
+            content: `Gere as pistas no estilo solicitado para as seguintes palavras: ${words.join(', ')}.`
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Groq API returned status ${response.status}`);
+    }
+
+    const data = await response.json();
+    const contentText = data.choices?.[0]?.message?.content;
+    if (!contentText) {
+      throw new Error('Invalid Groq API response structure');
+    }
+
+    const parsed = JSON.parse(contentText);
+    if (parsed.pistas && typeof parsed.pistas === 'object') {
+      const normalizedPistas: Record<string, string> = {};
+      for (const k of Object.keys(parsed.pistas)) {
+        normalizedPistas[k.toUpperCase()] = parsed.pistas[k];
+      }
+      return normalizedPistas;
+    } else {
+      throw new Error('Parsed response does not contain "pistas" object');
+    }
+  } catch (error) {
+    console.warn('Failed to fetch crossword clues from Groq. Falling back.', error);
+    throw error;
+  }
+}
+

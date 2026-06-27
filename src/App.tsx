@@ -1517,7 +1517,7 @@ if (!oppTermo || oppTermo === 0) {
     };
   }, [gameModeType, view]);
 
-  const handleStartCrossword = () => {
+  const handleStartCrossword = async () => {
     if (crosswordResultToday) return;
 
     // In Versus mode, lock crossword difficulty to 'medio' and duration to 5 minutes
@@ -1525,50 +1525,57 @@ if (!oppTermo || oppTermo === 0) {
     const diff = isVersus ? 'medio' : crosswordConfigDifficulty;
     const dur = isVersus ? 5 : crosswordConfigDuration;
 
-    const challenge = getCrosswordForDate(todayStr, diff, dur);
+    setLoading(true);
+    try {
+      const challenge = await getCrosswordForDate(todayStr, diff, dur);
 
-    const savedKey = `crossword_progress_${todayStr}_${diff}_${dur}`;
-    const savedDataStr = localStorage.getItem(savedKey);
-    let initialCells = buildInitialCrosswordCells(challenge);
-    let initialSolvedIds: string[] = [];
-    let initialTime = 0;
-    let initialAssisted = false;
-    let initialAutocorrect = false;
+      const savedKey = `crossword_progress_${todayStr}_${diff}_${dur}`;
+      const savedDataStr = localStorage.getItem(savedKey);
+      let initialCells = buildInitialCrosswordCells(challenge);
+      let initialSolvedIds: string[] = [];
+      let initialTime = 0;
+      let initialAssisted = false;
+      let initialAutocorrect = false;
 
-    if (savedDataStr) {
-      try {
-        const savedData = JSON.parse(savedDataStr);
-        if (savedData.cells) initialCells = savedData.cells;
-        if (savedData.solvedIds) initialSolvedIds = savedData.solvedIds;
-        if (savedData.time) initialTime = savedData.time;
-        if (savedData.assisted) initialAssisted = savedData.assisted;
-        if (savedData.autocorrect) initialAutocorrect = savedData.autocorrect;
-      } catch (e) {
-        console.error('Failed to load crossword autosave:', e);
+      if (savedDataStr) {
+        try {
+          const savedData = JSON.parse(savedDataStr);
+          if (savedData.cells) initialCells = savedData.cells;
+          if (savedData.solvedIds) initialSolvedIds = savedData.solvedIds;
+          if (savedData.time) initialTime = savedData.time;
+          if (savedData.assisted) initialAssisted = savedData.assisted;
+          if (savedData.autocorrect) initialAutocorrect = savedData.autocorrect;
+        } catch (e) {
+          console.error('Failed to load crossword autosave:', e);
+        }
       }
+
+      setGameModeType('crossword');
+      setCrosswordChallenge(challenge);
+      setTargetWords(challenge.entries.map(entry => entry.answer));
+      setCrosswordCells(initialCells);
+      setCrosswordSelectedId(challenge.entries[0]?.id || '1A');
+      setCrosswordSolvedIds(initialSolvedIds);
+      setCrosswordAssisted(initialAssisted);
+      setCrosswordAutocorrect(initialAutocorrect);
+      setCrosswordMessage(savedDataStr ? 'Progresso restaurado.' : '');
+      setElapsedTime(initialTime);
+      setModalScore(0);
+      setShowGameModal(false);
+      setTriggerConfetti(false);
+      setView('playing');
+
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        if (!isCrosswordBlurredRef.current) {
+          setElapsedTime(prev => prev + 1);
+        }
+      }, 1000);
+    } catch (err) {
+      console.error('Failed to start crossword:', err);
+    } finally {
+      setLoading(false);
     }
-
-    setGameModeType('crossword');
-    setCrosswordChallenge(challenge);
-    setTargetWords(challenge.entries.map(entry => entry.answer));
-    setCrosswordCells(initialCells);
-    setCrosswordSelectedId(challenge.entries[0]?.id || '1A');
-    setCrosswordSolvedIds(initialSolvedIds);
-    setCrosswordAssisted(initialAssisted);
-    setCrosswordAutocorrect(initialAutocorrect);
-    setCrosswordMessage(savedDataStr ? 'Progresso restaurado.' : '');
-    setElapsedTime(initialTime);
-    setModalScore(0);
-    setShowGameModal(false);
-    setTriggerConfetti(false);
-    setView('playing');
-
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      if (!isCrosswordBlurredRef.current) {
-        setElapsedTime(prev => prev + 1);
-      }
-    }, 1000);
   };
 
   const finishSpecialMode = (
